@@ -1,2 +1,2 @@
 # git-github
-edureka tutorial
+This is the edureka tutorial.
