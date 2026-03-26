@@ -2,6 +2,9 @@ import discord
 
 from database import get_or_create_player, create_match, get_pending_match
 
+REACT_P1 = "\U0001f534"  # Red circle for player 1
+REACT_P2 = "\U0001f535"  # Blue circle for player 2
+
 
 class MatchmakingQueue:
     def __init__(self):
@@ -68,15 +71,18 @@ def build_match_embed(p1: dict, p2: dict, match_id: int) -> discord.Embed:
         color=discord.Color.green(),
     )
     embed.add_field(
-        name=p1["username"],
+        name=f"{REACT_P1} {p1['username']}",
         value=f"Elo: {p1['elo']}",
         inline=True,
     )
     embed.add_field(name="vs", value="\u200b", inline=True)
     embed.add_field(
-        name=p2["username"],
+        name=f"{REACT_P2} {p2['username']}",
         value=f"Elo: {p2['elo']}",
         inline=True,
     )
-    embed.set_footer(text="Use /report to report the match result when done.")
+    embed.set_footer(
+        text="React with the winner's icon to report the result.\n"
+        "Both players must agree. Conflicting votes = dispute."
+    )
     return embed
