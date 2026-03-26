@@ -31,6 +31,8 @@ def init_db():
             player2_elo_before INTEGER NOT NULL,
             player1_elo_after INTEGER,
             player2_elo_after INTEGER,
+            thread_id TEXT,
+            message_id TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             completed_at TIMESTAMP,
             FOREIGN KEY (player1_id) REFERENCES players(discord_id),
@@ -128,6 +130,28 @@ def get_leaderboard(limit: int = 10) -> list[dict]:
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def set_match_thread(match_id: int, thread_id: str, message_id: str):
+    conn = get_connection()
+    conn.execute(
+        "UPDATE matches SET thread_id = ?, message_id = ? WHERE id = ?",
+        (thread_id, message_id, match_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_match_by_message(message_id: str) -> dict | None:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM matches WHERE message_id = ? AND winner_id IS NULL",
+        (message_id,),
+    )
+    match = cursor.fetchone()
+    conn.close()
+    return dict(match) if match else None
 
 
 def get_pending_match(player_id: str) -> dict | None:
