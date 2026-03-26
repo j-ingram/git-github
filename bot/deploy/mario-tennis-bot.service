@@ -1,0 +1,15 @@
+[Unit]
+Description=Mario Tennis Matchmaking Discord Bot
+After=network.target
+
+[Service]
+Type=simple
+User=botuser
+WorkingDirectory=/opt/mario-tennis-bot/bot
+ExecStart=/opt/mario-tennis-bot/venv/bin/python bot.py
+Restart=always
+RestartSec=10
+EnvironmentFile=/opt/mario-tennis-bot/bot/.env
+
+[Install]
+WantedBy=multi-user.target
