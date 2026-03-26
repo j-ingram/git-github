@@ -97,7 +97,7 @@ async def join_queue(interaction: discord.Interaction):
         # Notify in the main channel
         await interaction.channel.send(
             f"**Match #{match_id}** created! "
-            f"<@{p1['discord_id']}> vs <@{p2['discord_id']}> — "
+            f"<@{p1['discord_id']}> vs <@{p2['discord_id']}> \u2014 "
             f"check your private thread."
         )
 
@@ -301,7 +301,7 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
             # Clean up
             match_votes.pop(payload.message_id, None)
         else:
-            # Dispute — players disagree
+            # Dispute \u2014 players disagree
             await channel.send(
                 f"**Match #{match['id']} is disputed!** "
                 f"Players selected different winners. "
