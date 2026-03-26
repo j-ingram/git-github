@@ -13,17 +13,24 @@ from database import (
     update_player_stats,
     get_player,
     update_player_username,
+    set_match_thread,
+    get_match_by_message,
 )
 from elo import calculate_new_ratings
-from matchmaking import MatchmakingQueue, build_match_embed
+from matchmaking import MatchmakingQueue, build_match_embed, REACT_P1, REACT_P2
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 intents = discord.Intents.default()
+intents.message_content = True
+intents.reactions = True
 bot = discord.Client(intents=intents)
 tree = app_commands.CommandTree(bot)
 queue = MatchmakingQueue()
+
+# Track votes per match message: {message_id: {discord_id: emoji}}
+match_votes: dict[int, dict[str, str]] = {}
 
 
 @bot.event
@@ -53,7 +60,7 @@ async def join_queue(interaction: discord.Interaction):
     if pending:
         await interaction.response.send_message(
             f"You have an unfinished match (#{pending['id']}). "
-            "Use `/report` to report the result first.",
+            "Finish your current match first.",
             ephemeral=True,
         )
         return
@@ -69,8 +76,29 @@ async def join_queue(interaction: discord.Interaction):
     if result:
         p1, p2, match_id = result
         embed = build_match_embed(p1, p2, match_id)
-        await interaction.channel.send(
+
+        # Create a private thread for the match
+        thread = await interaction.channel.create_thread(
+            name=f"Match #{match_id}: {p1['username']} vs {p2['username']}",
+            type=discord.ChannelType.private_thread,
+        )
+
+        # Send the match embed in the thread and add reaction icons
+        match_msg = await thread.send(
             f"<@{p1['discord_id']}> <@{p2['discord_id']}>", embed=embed
+        )
+        await match_msg.add_reaction(REACT_P1)
+        await match_msg.add_reaction(REACT_P2)
+
+        # Store thread and message IDs in the database
+        set_match_thread(match_id, str(thread.id), str(match_msg.id))
+        match_votes[match_msg.id] = {}
+
+        # Notify in the main channel
+        await interaction.channel.send(
+            f"**Match #{match_id}** created! "
+            f"<@{p1['discord_id']}> vs <@{p2['discord_id']}> — "
+            f"check your private thread."
         )
 
 
@@ -90,7 +118,9 @@ async def leave_queue(interaction: discord.Interaction):
 @tree.command(name="queue", description="See who is in the matchmaking queue")
 async def view_queue(interaction: discord.Interaction):
     if queue.queue_size() == 0:
-        await interaction.response.send_message("The queue is empty.")
+        await interaction.response.send_message(
+            "The queue is empty.", ephemeral=True
+        )
         return
 
     lines = []
@@ -105,73 +135,7 @@ async def view_queue(interaction: discord.Interaction):
         color=discord.Color.blue(),
     )
     embed.set_footer(text=f"{queue.queue_size()} player(s) waiting")
-    await interaction.response.send_message(embed=embed)
-
-
-@tree.command(name="report", description="Report a match result")
-@app_commands.describe(match_id="The match ID", winner="The player who won")
-async def report_match(
-    interaction: discord.Interaction,
-    match_id: int,
-    winner: discord.Member,
-):
-    discord_id = str(interaction.user.id)
-    winner_id = str(winner.id)
-
-    pending = get_pending_match(discord_id)
-    if not pending or pending["id"] != match_id:
-        await interaction.response.send_message(
-            "You don't have a pending match with that ID.", ephemeral=True
-        )
-        return
-
-    if winner_id not in (pending["player1_id"], pending["player2_id"]):
-        await interaction.response.send_message(
-            "The winner must be one of the match participants.", ephemeral=True
-        )
-        return
-
-    loser_id = (
-        pending["player2_id"]
-        if winner_id == pending["player1_id"]
-        else pending["player1_id"]
-    )
-
-    winner_player = get_player(winner_id)
-    loser_player = get_player(loser_id)
-
-    new_winner_elo, new_loser_elo = calculate_new_ratings(
-        winner_player["elo"], loser_player["elo"]
-    )
-
-    # Determine elo_after values in match column order (player1, player2)
-    if winner_id == pending["player1_id"]:
-        p1_elo_after, p2_elo_after = new_winner_elo, new_loser_elo
-    else:
-        p1_elo_after, p2_elo_after = new_loser_elo, new_winner_elo
-
-    complete_match(match_id, winner_id, p1_elo_after, p2_elo_after)
-    update_player_stats(winner_id, new_winner_elo, won=True)
-    update_player_stats(loser_id, new_loser_elo, won=False)
-
-    winner_delta = new_winner_elo - winner_player["elo"]
-    loser_delta = new_loser_elo - loser_player["elo"]
-
-    embed = discord.Embed(
-        title=f"Match #{match_id} Result",
-        color=discord.Color.gold(),
-    )
-    embed.add_field(
-        name="Winner",
-        value=f"**{winner_player['username']}** {winner_player['elo']} -> {new_winner_elo} (+{winner_delta})",
-        inline=False,
-    )
-    embed.add_field(
-        name="Loser",
-        value=f"**{loser_player['username']}** {loser_player['elo']} -> {new_loser_elo} ({loser_delta})",
-        inline=False,
-    )
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 @tree.command(name="stats", description="View your stats or another player's stats")
@@ -194,14 +158,16 @@ async def stats(
     embed.add_field(name="Wins", value=str(p["wins"]), inline=True)
     embed.add_field(name="Losses", value=str(p["losses"]), inline=True)
     embed.add_field(name="Win Rate", value=win_rate, inline=True)
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 @tree.command(name="leaderboard", description="View the top players")
 async def leaderboard(interaction: discord.Interaction):
     top = get_leaderboard(10)
     if not top:
-        await interaction.response.send_message("No players yet!")
+        await interaction.response.send_message(
+            "No players yet!", ephemeral=True
+        )
         return
 
     lines = []
@@ -217,10 +183,10 @@ async def leaderboard(interaction: discord.Interaction):
         description="\n".join(lines),
         color=discord.Color.gold(),
     )
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-@tree.command(name="cancel", description="Cancel your pending match (both players must agree)")
+@tree.command(name="cancel", description="Cancel your pending match")
 async def cancel_match(interaction: discord.Interaction):
     discord_id = str(interaction.user.id)
     pending = get_pending_match(discord_id)
@@ -237,9 +203,110 @@ async def cancel_match(interaction: discord.Interaction):
         pending["player1_elo_before"],
         pending["player2_elo_before"],
     )
+
+    # Clean up vote tracking
+    if pending["message_id"]:
+        match_votes.pop(int(pending["message_id"]), None)
+
     await interaction.response.send_message(
         f"Match #{pending['id']} has been cancelled. No Elo changes applied."
     )
+
+
+@bot.event
+async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
+    # Ignore bot's own reactions
+    if payload.user_id == bot.user.id:
+        return
+
+    emoji = str(payload.emoji)
+    if emoji not in (REACT_P1, REACT_P2):
+        return
+
+    # Look up the match by message ID
+    match = get_match_by_message(str(payload.message_id))
+    if not match:
+        return
+
+    user_id = str(payload.user_id)
+
+    # Only match participants can vote
+    if user_id not in (match["player1_id"], match["player2_id"]):
+        return
+
+    # Initialize vote tracking for this message if needed
+    if payload.message_id not in match_votes:
+        match_votes[payload.message_id] = {}
+
+    votes = match_votes[payload.message_id]
+
+    # Remove any previous reaction by this user from the message
+    channel = bot.get_channel(payload.channel_id)
+    if channel is None:
+        channel = await bot.fetch_channel(payload.channel_id)
+    message = await channel.fetch_message(payload.message_id)
+
+    for reaction_emoji in (REACT_P1, REACT_P2):
+        if reaction_emoji != emoji:
+            await message.remove_reaction(reaction_emoji, discord.Object(id=payload.user_id))
+
+    # Record this player's vote
+    votes[user_id] = emoji
+
+    # Check if both players have voted
+    if match["player1_id"] in votes and match["player2_id"] in votes:
+        p1_vote = votes[match["player1_id"]]
+        p2_vote = votes[match["player2_id"]]
+
+        if p1_vote == p2_vote:
+            # Both agree on a winner
+            winner_id = match["player1_id"] if p1_vote == REACT_P1 else match["player2_id"]
+            loser_id = match["player2_id"] if winner_id == match["player1_id"] else match["player1_id"]
+
+            winner_player = get_player(winner_id)
+            loser_player = get_player(loser_id)
+
+            new_winner_elo, new_loser_elo = calculate_new_ratings(
+                winner_player["elo"], loser_player["elo"]
+            )
+
+            if winner_id == match["player1_id"]:
+                p1_elo_after, p2_elo_after = new_winner_elo, new_loser_elo
+            else:
+                p1_elo_after, p2_elo_after = new_loser_elo, new_winner_elo
+
+            complete_match(match["id"], winner_id, p1_elo_after, p2_elo_after)
+            update_player_stats(winner_id, new_winner_elo, won=True)
+            update_player_stats(loser_id, new_loser_elo, won=False)
+
+            winner_delta = new_winner_elo - winner_player["elo"]
+            loser_delta = new_loser_elo - loser_player["elo"]
+
+            result_embed = discord.Embed(
+                title=f"Match #{match['id']} Result",
+                color=discord.Color.gold(),
+            )
+            result_embed.add_field(
+                name="Winner",
+                value=f"**{winner_player['username']}** {winner_player['elo']} \u2192 {new_winner_elo} (+{winner_delta})",
+                inline=False,
+            )
+            result_embed.add_field(
+                name="Loser",
+                value=f"**{loser_player['username']}** {loser_player['elo']} \u2192 {new_loser_elo} ({loser_delta})",
+                inline=False,
+            )
+            await channel.send(embed=result_embed)
+
+            # Clean up
+            match_votes.pop(payload.message_id, None)
+        else:
+            # Dispute — players disagree
+            await channel.send(
+                f"**Match #{match['id']} is disputed!** "
+                f"Players selected different winners. "
+                f"Change your reaction to agree, or use `/cancel` to void the match."
+            )
 
 
 bot.run(TOKEN)
