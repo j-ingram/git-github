@@ -13,13 +13,12 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 
 | Command | Description |
 |---------|-------------|
-| `/join` | Join the matchmaking queue |
-| `/leave` | Leave the queue |
-| `/queue` | See who is currently in the queue |
-| `/report <match_id> <winner>` | Report a match result |
+| `/join` | Join the matchmaking queue (visible to all) |
+| `/leave` | Leave the queue (visible to all) |
+| `/queue` | See who is currently in the queue (ephemeral) |
 | `/cancel` | Cancel your pending match (no Elo change) |
-| `/stats [player]` | View your or another player's stats |
-| `/leaderboard` | View the top 10 players |
+| `/stats [player]` | View your or another player's stats (ephemeral) |
+| `/leaderboard` | View the top 10 players (ephemeral) |
 
 ## Setup
 
@@ -64,8 +63,10 @@ sudo systemctl start mario-tennis-bot
 
 1. Players use `/join` to enter the queue
 2. When 2+ players are in the queue, the bot matches the two with the closest Elo
-3. Players play their game, then use `/report` to log the winner
-4. Elo ratings are updated based on the result
+3. A private thread is created for the matched players
+4. After playing, both players react on the match embed with the winner's icon
+5. If both players agree, the match is resolved and Elo is updated
+6. If players disagree, the match is flagged as disputed
 
 ## Elo System
 
