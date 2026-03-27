@@ -1,9 +1,13 @@
+import random
+
 import discord
 
 from database import get_or_create_player, create_match, get_pending_match
 
 REACT_P1 = "\U0001f534"  # Red circle for player 1
 REACT_P2 = "\U0001f535"  # Blue circle for player 2
+
+COURT_TYPES = ("Grass", "Hard", "Clay", "Wood", "Brick", "Carpet", "Sand", "Forest")
 
 
 class MatchmakingQueue:
@@ -64,7 +68,11 @@ class MatchmakingQueue:
         return p1, p2, match_id
 
 
-def build_match_embed(p1: dict, p2: dict, match_id: int) -> discord.Embed:
+def pick_court() -> str:
+    return random.choice(COURT_TYPES)
+
+
+def build_match_embed(p1: dict, p2: dict, match_id: int, court: str) -> discord.Embed:
     embed = discord.Embed(
         title="Match Found!",
         description=f"**Match #{match_id}**",
@@ -80,6 +88,11 @@ def build_match_embed(p1: dict, p2: dict, match_id: int) -> discord.Embed:
         name=f"{REACT_P2} {p2['username']}",
         value=f"Elo: {p2['elo']}",
         inline=True,
+    )
+    embed.add_field(
+        name="Court",
+        value=f"**{court}**",
+        inline=False,
     )
     embed.set_footer(
         text="React with the winner's icon to report the result.\n"

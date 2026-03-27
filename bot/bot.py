@@ -17,7 +17,7 @@ from database import (
     get_match_by_message,
 )
 from elo import calculate_new_ratings
-from matchmaking import MatchmakingQueue, build_match_embed, REACT_P1, REACT_P2
+from matchmaking import MatchmakingQueue, build_match_embed, pick_court, REACT_P1, REACT_P2
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -31,6 +31,9 @@ queue = MatchmakingQueue()
 
 # Track votes per match message: {message_id: {discord_id: emoji}}
 match_votes: dict[int, dict[str, str]] = {}
+
+# Track cancel requests per match: {match_id: set of discord_ids who requested cancel}
+cancel_requests: dict[int, set[str]] = {}
 
 
 @bot.event
@@ -75,7 +78,8 @@ async def join_queue(interaction: discord.Interaction):
     result = queue.find_match()
     if result:
         p1, p2, match_id = result
-        embed = build_match_embed(p1, p2, match_id)
+        court = pick_court()
+        embed = build_match_embed(p1, p2, match_id, court)
 
         # Create a private thread for the match
         thread = await interaction.channel.create_thread(
@@ -186,7 +190,7 @@ async def leaderboard(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-@tree.command(name="cancel", description="Cancel your pending match")
+@tree.command(name="cancel", description="Request to cancel your pending match")
 async def cancel_match(interaction: discord.Interaction):
     discord_id = str(interaction.user.id)
     pending = get_pending_match(discord_id)
@@ -196,21 +200,53 @@ async def cancel_match(interaction: discord.Interaction):
         )
         return
 
-    # Cancel by completing with no winner (set elo_after = elo_before)
-    complete_match(
-        pending["id"],
-        "cancelled",
-        pending["player1_elo_before"],
-        pending["player2_elo_before"],
+    match_id = pending["id"]
+    opponent_id = (
+        pending["player2_id"]
+        if discord_id == pending["player1_id"]
+        else pending["player1_id"]
     )
 
-    # Clean up vote tracking
-    if pending["message_id"]:
-        match_votes.pop(int(pending["message_id"]), None)
+    if match_id not in cancel_requests:
+        cancel_requests[match_id] = set()
 
-    await interaction.response.send_message(
-        f"Match #{pending['id']} has been cancelled. No Elo changes applied."
-    )
+    cancel_requests[match_id].add(discord_id)
+
+    if len(cancel_requests[match_id]) >= 2:
+        # Both players agreed to cancel
+        complete_match(
+            match_id,
+            "cancelled",
+            pending["player1_elo_before"],
+            pending["player2_elo_before"],
+        )
+
+        # Clean up tracking
+        if pending["message_id"]:
+            match_votes.pop(int(pending["message_id"]), None)
+        cancel_requests.pop(match_id, None)
+
+        await interaction.response.send_message(
+            f"Match #{match_id} has been cancelled by both players. No Elo changes applied."
+        )
+
+        # Archive the thread if it exists
+        if pending["thread_id"]:
+            try:
+                thread = bot.get_channel(int(pending["thread_id"]))
+                if thread is None:
+                    thread = await bot.fetch_channel(int(pending["thread_id"]))
+                await thread.send(f"**Match #{match_id} cancelled.** Thread will now close.")
+                await thread.edit(archived=True, locked=True)
+            except discord.HTTPException:
+                pass
+    else:
+        # First player to request cancel \u2014 notify opponent
+        await interaction.response.send_message(
+            f"<@{discord_id}> wants to cancel **Match #{match_id}**.\n"
+            f"<@{opponent_id}>, type `/cancel` to agree.\n"
+            f"If you disagree, the match will be flagged for moderator review."
+        )
 
 
 @bot.event
@@ -300,6 +336,14 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
 
             # Clean up
             match_votes.pop(payload.message_id, None)
+            cancel_requests.pop(match["id"], None)
+
+            # Archive and lock the thread
+            try:
+                await channel.send("**Match complete!** This thread will now close.")
+                await channel.edit(archived=True, locked=True)
+            except discord.HTTPException:
+                pass
         else:
             # Dispute \u2014 players disagree
             await channel.send(
