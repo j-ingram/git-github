@@ -348,8 +348,9 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
             # Dispute \u2014 players disagree
             await channel.send(
                 f"**Match #{match['id']} is disputed!** "
-                f"Players selected different winners. "
-                f"Change your reaction to agree, or use `/cancel` to void the match."
+                f"<@{match['player1_id']}> and <@{match['player2_id']}> selected different winners.\n"
+                f"Change your reaction to agree, use `/cancel` to void the match, "
+                f"or contact the moderator team for assistance."
             )
 
 
