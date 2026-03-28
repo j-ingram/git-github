@@ -5,8 +5,8 @@ import discord
 
 from database import get_or_create_player, create_match, get_pending_match
 
-REACT_P1 = "1\ufe0f\u20e3"  # 1️⃣ for player 1
-REACT_P2 = "2\ufe0f\u20e3"  # 2️⃣ for player 2
+REACT_P1 = "\U0001f344"  # 🍄 for player 1
+REACT_P2 = "\u2b50"     # ⭐ for player 2
 
 COURT_TYPES = ("Grass", "Hard", "Clay", "Wood", "Brick", "Carpet", "Sand", "Forest")
 
@@ -65,9 +65,6 @@ class MatchmakingQueue:
         players = list(self.queue.values())
         players.sort(key=lambda p: p["elo"])
 
-        print(f"[Matchmaking] Queue has {len(players)} players: "
-              + ", ".join(f"{p['username']}({p['elo']})" for p in players))
-
         # Build ALL candidate pairs sorted by Elo difference
         candidates = []
         for i in range(len(players)):
@@ -76,33 +73,21 @@ class MatchmakingQueue:
                 candidates.append((diff, players[i], players[j]))
         candidates.sort(key=lambda c: c[0])
 
-        print(f"[Matchmaking] Candidate pairs: "
-              + ", ".join(f"{a['username']} vs {b['username']} (diff={d})" for d, a, b in candidates))
-
         # Find the best pair that isn't on cooldown
         best_pair = None
         for diff, a, b in candidates:
-            on_cd = self._is_on_cooldown(a["discord_id"], b["discord_id"])
-            print(f"[Matchmaking] Checking {a['username']} vs {b['username']}: cooldown={on_cd}")
-            if not on_cd:
+            if not self._is_on_cooldown(a["discord_id"], b["discord_id"]):
                 best_pair = (a, b)
                 break
 
         if best_pair is None:
-            print("[Matchmaking] No valid pair found")
             return None
 
         p1, p2 = best_pair
 
         # Check neither player has an unfinished match
-        p1_pending = get_pending_match(p1["discord_id"])
-        p2_pending = get_pending_match(p2["discord_id"])
-        if p1_pending or p2_pending:
-            print(f"[Matchmaking] Blocked by pending match: "
-                  f"{p1['username']}={p1_pending is not None}, {p2['username']}={p2_pending is not None}")
+        if get_pending_match(p1["discord_id"]) or get_pending_match(p2["discord_id"]):
             return None
-
-        print(f"[Matchmaking] Matching {p1['username']} vs {p2['username']}")
 
         # Remove from queue and clean up join times
         self.queue.pop(p1["discord_id"], None)
@@ -144,7 +129,7 @@ def build_match_embed(p1: dict, p2: dict, match_id: int, court: str) -> discord.
         inline=False,
     )
     embed.set_footer(
-        text="React with the winner's number to report the result.\n"
+        text="React with the winner's icon to report the result.\n"
         "Both players must agree. Conflicting votes = dispute."
     )
     return embed
