@@ -68,11 +68,12 @@ class MatchmakingQueue:
         print(f"[Matchmaking] Queue has {len(players)} players: "
               + ", ".join(f"{p['username']}({p['elo']})" for p in players))
 
-        # Build sorted candidate pairs by Elo difference
+        # Build ALL candidate pairs sorted by Elo difference
         candidates = []
-        for i in range(len(players) - 1):
-            diff = abs(players[i]["elo"] - players[i + 1]["elo"])
-            candidates.append((diff, players[i], players[i + 1]))
+        for i in range(len(players)):
+            for j in range(i + 1, len(players)):
+                diff = abs(players[i]["elo"] - players[j]["elo"])
+                candidates.append((diff, players[i], players[j]))
         candidates.sort(key=lambda c: c[0])
 
         print(f"[Matchmaking] Candidate pairs: "
