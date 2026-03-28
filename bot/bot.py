@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 import discord
@@ -49,6 +50,95 @@ cancel_requests: dict[int, set[str]] = {}
 
 # Track which channel each queued player joined from: {discord_id: channel_id}
 queue_channels: dict[str, int] = {}
+
+# Track vote timeout tasks: {message_id: asyncio.Task}
+vote_timers: dict[int, asyncio.Task] = {}
+
+VOTE_TIMEOUT = 300  # 5 minutes for the other player to vote
+
+
+async def resolve_match(match: dict, winner_emoji: str, channel: discord.abc.Messageable, message_id: int):
+    """Resolve a match based on the winning emoji. Updates Elo, sends result, and closes thread."""
+    winner_id = match["player1_id"] if winner_emoji == REACT_P1 else match["player2_id"]
+    loser_id = match["player2_id"] if winner_id == match["player1_id"] else match["player1_id"]
+
+    winner_player = get_player(winner_id)
+    loser_player = get_player(loser_id)
+
+    new_winner_elo, new_loser_elo = calculate_new_ratings(
+        winner_player["elo"], loser_player["elo"]
+    )
+
+    if winner_id == match["player1_id"]:
+        p1_elo_after, p2_elo_after = new_winner_elo, new_loser_elo
+    else:
+        p1_elo_after, p2_elo_after = new_loser_elo, new_winner_elo
+
+    complete_match(match["id"], winner_id, p1_elo_after, p2_elo_after)
+    update_player_stats(winner_id, new_winner_elo, won=True)
+    update_player_stats(loser_id, new_loser_elo, won=False)
+
+    winner_delta = new_winner_elo - winner_player["elo"]
+    loser_delta = new_loser_elo - loser_player["elo"]
+
+    result_embed = discord.Embed(
+        title=f"Match #{match['id']} Result",
+        color=discord.Color.gold(),
+    )
+    result_embed.add_field(
+        name="Winner",
+        value=f"**{winner_player['username']}** {winner_player['elo']} \u2192 {new_winner_elo} (+{winner_delta})",
+        inline=False,
+    )
+    result_embed.add_field(
+        name="Loser",
+        value=f"**{loser_player['username']}** {loser_player['elo']} \u2192 {new_loser_elo} ({loser_delta})",
+        inline=False,
+    )
+    await channel.send(embed=result_embed)
+
+    # Record recent match for cooldown
+    queue.record_match(match["player1_id"], match["player2_id"])
+
+    # Clean up
+    match_votes.pop(message_id, None)
+    cancel_requests.pop(match["id"], None)
+    vote_timers.pop(message_id, None)
+
+    # Archive and lock the thread
+    try:
+        await channel.send("**Match complete!** This thread will now close.")
+        await channel.edit(archived=True, locked=True)
+    except discord.HTTPException:
+        pass
+
+
+async def vote_timeout(message_id: int, channel_id: int, match_id_str: str, voter_id: str, other_id: str, voter_emoji: str):
+    """Wait 5 minutes, then accept the first voter's result if the other player hasn't voted."""
+    await asyncio.sleep(VOTE_TIMEOUT)
+
+    votes = match_votes.get(message_id)
+    if votes is None:
+        return  # Match already resolved
+
+    # If the other player still hasn't voted, accept the first voter's result
+    if other_id not in votes:
+        match = get_match_by_message(str(message_id))
+        if not match:
+            return
+
+        channel = bot.get_channel(channel_id)
+        if channel is None:
+            try:
+                channel = await bot.fetch_channel(channel_id)
+            except discord.HTTPException:
+                return
+
+        await channel.send(
+            f"<@{other_id}> did not respond within 5 minutes. "
+            f"<@{voter_id}>'s result has been accepted."
+        )
+        await resolve_match(match, voter_emoji, channel, message_id)
 
 
 @bot.event
@@ -426,72 +516,43 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     # Record this player's vote
     votes[user_id] = emoji
 
+    # Determine the other player
+    other_id = match["player2_id"] if user_id == match["player1_id"] else match["player1_id"]
+
     # Check if both players have voted
-    if match["player1_id"] in votes and match["player2_id"] in votes:
-        p1_vote = votes[match["player1_id"]]
-        p2_vote = votes[match["player2_id"]]
+    if other_id in votes:
+        # Cancel any pending timeout since both players have voted
+        timer = vote_timers.pop(payload.message_id, None)
+        if timer:
+            timer.cancel()
 
-        if p1_vote == p2_vote:
+        if votes[user_id] == votes[other_id]:
             # Both agree on a winner
-            winner_id = match["player1_id"] if p1_vote == REACT_P1 else match["player2_id"]
-            loser_id = match["player2_id"] if winner_id == match["player1_id"] else match["player1_id"]
-
-            winner_player = get_player(winner_id)
-            loser_player = get_player(loser_id)
-
-            new_winner_elo, new_loser_elo = calculate_new_ratings(
-                winner_player["elo"], loser_player["elo"]
-            )
-
-            if winner_id == match["player1_id"]:
-                p1_elo_after, p2_elo_after = new_winner_elo, new_loser_elo
-            else:
-                p1_elo_after, p2_elo_after = new_loser_elo, new_winner_elo
-
-            complete_match(match["id"], winner_id, p1_elo_after, p2_elo_after)
-            update_player_stats(winner_id, new_winner_elo, won=True)
-            update_player_stats(loser_id, new_loser_elo, won=False)
-
-            winner_delta = new_winner_elo - winner_player["elo"]
-            loser_delta = new_loser_elo - loser_player["elo"]
-
-            result_embed = discord.Embed(
-                title=f"Match #{match['id']} Result",
-                color=discord.Color.gold(),
-            )
-            result_embed.add_field(
-                name="Winner",
-                value=f"**{winner_player['username']}** {winner_player['elo']} \u2192 {new_winner_elo} (+{winner_delta})",
-                inline=False,
-            )
-            result_embed.add_field(
-                name="Loser",
-                value=f"**{loser_player['username']}** {loser_player['elo']} \u2192 {new_loser_elo} ({loser_delta})",
-                inline=False,
-            )
-            await channel.send(embed=result_embed)
-
-            # Record recent match for cooldown
-            queue.record_match(match["player1_id"], match["player2_id"])
-
-            # Clean up
-            match_votes.pop(payload.message_id, None)
-            cancel_requests.pop(match["id"], None)
-
-            # Archive and lock the thread
-            try:
-                await channel.send("**Match complete!** This thread will now close.")
-                await channel.edit(archived=True, locked=True)
-            except discord.HTTPException:
-                pass
+            await resolve_match(match, emoji, channel, payload.message_id)
         else:
-            # Dispute \u2014 players disagree
+            # Dispute — players disagree
             await channel.send(
                 f"**Match #{match['id']} is disputed!** "
                 f"<@{match['player1_id']}> and <@{match['player2_id']}> selected different winners.\n"
                 f"Change your reaction to agree, use `/cancel` to void the match, "
                 f"or contact the moderator team for assistance."
             )
+    else:
+        # First vote — ping the other player and start 5-minute timer
+        await channel.send(
+            f"<@{other_id}>, your opponent has submitted their result. "
+            f"You have **5 minutes** to react with the winner's icon or their result will be accepted."
+        )
+
+        # Cancel any existing timer for this message (in case of re-vote)
+        old_timer = vote_timers.pop(payload.message_id, None)
+        if old_timer:
+            old_timer.cancel()
+
+        task = asyncio.create_task(
+            vote_timeout(payload.message_id, payload.channel_id, str(match["id"]), user_id, other_id, emoji)
+        )
+        vote_timers[payload.message_id] = task
 
 
 bot.run(TOKEN)
