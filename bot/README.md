@@ -8,12 +8,14 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 - **Elo rating system** — Chess-style Elo ratings (K-factor: 32, default rating: 1000)
 - **Private match threads** — Each match gets its own private thread for isolated communication
 - **Reaction-based reporting** — Players react with the winner's icon to report results
-- **Dispute handling** — Conflicting votes flag a dispute with moderator contact instructions
+- **Dispute handling** — Conflicting votes flag a dispute; admins can `/resolve` or `/admin_cancel`
 - **Rematch cooldown** — 60-second cooldown prevents the same pair from being matched repeatedly, starting from when they join the queue
 - **Auto-matching** — Background task checks the queue every 10 seconds and pairs players once cooldowns expire
 - **Random court selection** — A random court is assigned to each match (Grass, Hard, Clay, Wood, Brick, Carpet, Sand, Forest)
 - **Match cancellation** — Both players must agree to cancel a match (no Elo change)
-- **Admin commands** — Owner/admin-only commands for season resets, Elo adjustments, and player bans
+- **No-show protection** — When one player votes, the other has 5 minutes to respond or the result is accepted automatically
+- **Match instructions** — Private threads include step-by-step instructions for setting up the game and the no-show rule
+- **Admin commands** — Owner/admin-only commands for season resets, Elo adjustments, player bans, and dispute resolution
 - **Leaderboard** — See the top-ranked players
 
 ## Commands
@@ -37,6 +39,10 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 | `/set_elo @player <elo>` | Set a player's Elo to a specific value | Public |
 | `/ban @player [reason]` | Ban a player from joining the matchmaking queue | Public |
 | `/unban @player` | Unban a player from matchmaking | Public |
+| `/resolve @winner [match_id]` | Declare the winner of a disputed match | Public |
+| `/admin_cancel [match_id]` | Cancel a match with no Elo change | Public |
+
+`/resolve` and `/admin_cancel` auto-detect the match when used inside a match thread. When used from any other channel, provide the match ID.
 
 Admin commands require your Discord user ID to be listed in `ADMIN_IDS` in the `.env` file.
 
@@ -117,10 +123,12 @@ sudo journalctl -u mario-tennis-bot -f    # View live logs
 2. When 2+ players are in the queue, the bot matches the two with the closest Elo
 3. If the best match is a recent rematch, the bot waits 60 seconds (from queue join time) before pairing them, giving priority to fresh matchups
 4. A background task checks the queue every 10 seconds for newly valid matches
-5. A private thread is created for the matched players with a random court assignment
-6. After playing, both players react on the match embed with the winner's icon (🔴 or 🔵)
-7. If both players agree, the match is resolved and Elo is updated
-8. If players disagree, the match is flagged as disputed
+5. A private thread is created with match instructions, game settings, and the no-show rule
+6. Players arrange a private match in Mario Tennis using the settings shown (court, ball speed, mode, match length)
+7. After playing, both players react on the match embed with the winner's icon (🔴 or 🔵)
+8. If both players agree, the match is resolved and Elo is updated
+9. If players disagree, the match is flagged as disputed — an admin can use `/resolve` or `/admin_cancel`
+10. If only one player votes, the other has 5 minutes to respond or the result is accepted by default
 
 ## Elo System
 
