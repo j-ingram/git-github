@@ -2,6 +2,7 @@ import os
 
 import discord
 from discord import app_commands
+from discord.ext import tasks
 from dotenv import load_dotenv
 
 from database import (
@@ -35,12 +36,84 @@ match_votes: dict[int, dict[str, str]] = {}
 # Track cancel requests per match: {match_id: set of discord_ids who requested cancel}
 cancel_requests: dict[int, set[str]] = {}
 
+# Track which channel each queued player joined from: {discord_id: channel_id}
+queue_channels: dict[str, int] = {}
+
 
 @bot.event
 async def on_ready():
     init_db()
     await tree.sync()
+    if not check_queue_matches.is_running():
+        check_queue_matches.start()
     print(f"Bot is online as {bot.user}")
+
+
+async def try_create_match(channel: discord.TextChannel) -> bool:
+    """Attempt to find and create a match. Returns True if a match was made."""
+    result = queue.find_match()
+    if not result:
+        return False
+
+    p1, p2, match_id = result
+    queue_channels.pop(p1["discord_id"], None)
+    queue_channels.pop(p2["discord_id"], None)
+
+    court = pick_court()
+    embed = build_match_embed(p1, p2, match_id, court)
+
+    thread = await channel.create_thread(
+        name=f"Match #{match_id}: {p1['username']} vs {p2['username']}",
+        type=discord.ChannelType.private_thread,
+    )
+
+    match_msg = await thread.send(
+        f"<@{p1['discord_id']}> <@{p2['discord_id']}>", embed=embed
+    )
+    await match_msg.add_reaction(REACT_P1)
+    await match_msg.add_reaction(REACT_P2)
+
+    set_match_thread(match_id, str(thread.id), str(match_msg.id))
+    match_votes[match_msg.id] = {}
+
+    await channel.send(
+        f"**Match #{match_id}** created! "
+        f"<@{p1['discord_id']}> vs <@{p2['discord_id']}> \u2014 "
+        f"check your private thread."
+    )
+    return True
+
+
+@tasks.loop(seconds=10)
+async def check_queue_matches():
+    """Periodically check the queue for matches that became valid after cooldowns expired."""
+    if queue.queue_size() < 2:
+        return
+
+    # Collect unique channels from queued players
+    channels_seen = set()
+    for discord_id in list(queue.queue.keys()):
+        ch_id = queue_channels.get(discord_id)
+        if ch_id:
+            channels_seen.add(ch_id)
+
+    # Use the first available channel to create the match thread
+    for ch_id in channels_seen:
+        channel = bot.get_channel(ch_id)
+        if channel is None:
+            try:
+                channel = await bot.fetch_channel(ch_id)
+            except discord.HTTPException:
+                continue
+        # Keep creating matches until no more valid pairs exist
+        while await try_create_match(channel):
+            pass
+        break
+
+
+@check_queue_matches.before_loop
+async def before_check_queue():
+    await bot.wait_until_ready()
 
 
 @tree.command(name="join", description="Join the matchmaking queue")
@@ -69,47 +142,21 @@ async def join_queue(interaction: discord.Interaction):
         return
 
     player = queue.add_player(discord_id, username)
+    queue_channels[discord_id] = interaction.channel_id
     await interaction.response.send_message(
         f"**{username}** joined the queue! (Elo: {player['elo']}) "
         f"Players in queue: {queue.queue_size()}"
     )
 
-    # Try to find a match
-    result = queue.find_match()
-    if result:
-        p1, p2, match_id = result
-        court = pick_court()
-        embed = build_match_embed(p1, p2, match_id, court)
-
-        # Create a private thread for the match
-        thread = await interaction.channel.create_thread(
-            name=f"Match #{match_id}: {p1['username']} vs {p2['username']}",
-            type=discord.ChannelType.private_thread,
-        )
-
-        # Send the match embed in the thread and add reaction icons
-        match_msg = await thread.send(
-            f"<@{p1['discord_id']}> <@{p2['discord_id']}>", embed=embed
-        )
-        await match_msg.add_reaction(REACT_P1)
-        await match_msg.add_reaction(REACT_P2)
-
-        # Store thread and message IDs in the database
-        set_match_thread(match_id, str(thread.id), str(match_msg.id))
-        match_votes[match_msg.id] = {}
-
-        # Notify in the main channel
-        await interaction.channel.send(
-            f"**Match #{match_id}** created! "
-            f"<@{p1['discord_id']}> vs <@{p2['discord_id']}> \u2014 "
-            f"check your private thread."
-        )
+    # Try to find a match immediately
+    await try_create_match(interaction.channel)
 
 
 @tree.command(name="leave", description="Leave the matchmaking queue")
 async def leave_queue(interaction: discord.Interaction):
     discord_id = str(interaction.user.id)
     if queue.remove_player(discord_id):
+        queue_channels.pop(discord_id, None)
         await interaction.response.send_message(
             f"**{interaction.user.display_name}** left the queue."
         )
