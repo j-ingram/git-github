@@ -5,8 +5,8 @@ import discord
 
 from database import get_or_create_player, create_match, get_pending_match
 
-REACT_P1 = "\U0001f534"  # Red circle for player 1
-REACT_P2 = "\U0001f535"  # Blue circle for player 2
+REACT_P1 = "1\ufe0f\u20e3"  # 1️⃣ for player 1
+REACT_P2 = "2\ufe0f\u20e3"  # 2️⃣ for player 2
 
 COURT_TYPES = ("Grass", "Hard", "Clay", "Wood", "Brick", "Carpet", "Sand", "Forest")
 
@@ -128,7 +128,7 @@ def build_match_embed(p1: dict, p2: dict, match_id: int, court: str) -> discord.
         inline=False,
     )
     embed.set_footer(
-        text="React with the winner's icon to report the result.\n"
+        text="React with the winner's number to report the result.\n"
         "Both players must agree. Conflicting votes = dispute."
     )
     return embed
