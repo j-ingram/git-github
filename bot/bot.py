@@ -176,6 +176,17 @@ async def try_create_match(channel: discord.TextChannel) -> bool:
     await match_msg.add_reaction(REACT_P1)
     await match_msg.add_reaction(REACT_P2)
 
+    await thread.send(
+        f"**How to play:**\n"
+        f"1. One player creates a **private match** in Mario Tennis and shares the room code here\n"
+        f"2. The other player joins using the room code\n"
+        f"3. Play with the settings shown above: **{court}** court, **High** ball speed, **Classic** mode, **Quick Play**\n"
+        f"4. After the match, both players react above with the winner's icon ({REACT_P1} or {REACT_P2})\n\n"
+        f"**No-show rule:** If your opponent does not respond in this thread within 5 minutes, "
+        f"report yourself as the winner by reacting above. If they don't dispute within 5 minutes, "
+        f"the result will be accepted automatically."
+    )
+
     set_match_thread(match_id, str(thread.id), str(match_msg.id))
     match_votes[match_msg.id] = {}
 
