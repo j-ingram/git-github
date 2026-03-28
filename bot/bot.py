@@ -25,6 +25,8 @@ from database import (
     unban_player,
     is_banned,
     get_player_rank,
+    set_setting,
+    get_setting,
 )
 from elo import calculate_new_ratings
 from matchmaking import MatchmakingQueue, build_match_embed, pick_court, REACT_P1, REACT_P2
@@ -566,6 +568,23 @@ async def unban_cmd(interaction: discord.Interaction, player: discord.Member):
         await interaction.response.send_message(
             f"**{player.display_name}** is not banned.", ephemeral=True
         )
+
+
+@tree.command(name="set_cooldown", description="[Admin] Set the rematch cooldown in seconds")
+@app_commands.describe(seconds="Cooldown duration in seconds (e.g. 60)")
+async def set_cooldown_cmd(interaction: discord.Interaction, seconds: int):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    if seconds < 0:
+        await interaction.response.send_message("Cooldown cannot be negative.", ephemeral=True)
+        return
+
+    set_setting("rematch_cooldown", str(seconds))
+    await interaction.response.send_message(
+        f"Rematch cooldown has been set to **{seconds} seconds**."
+    )
 
 
 async def find_match_from_context(interaction: discord.Interaction, match_id: int | None) -> dict | None:

@@ -3,14 +3,18 @@ import time
 
 import discord
 
-from database import get_or_create_player, create_match, get_pending_match
+from database import get_or_create_player, create_match, get_pending_match, get_setting
 
 REACT_P1 = "\U0001f344"  # 🍄 for player 1
 REACT_P2 = "\u2b50"     # ⭐ for player 2
 
 COURT_TYPES = ("Grass", "Hard", "Clay", "Wood", "Brick", "Carpet", "Sand", "Forest")
 
-REMATCH_COOLDOWN = 60  # seconds before same pair can be matched again
+DEFAULT_REMATCH_COOLDOWN = 60  # default seconds before same pair can be matched again
+
+
+def get_rematch_cooldown() -> int:
+    return int(get_setting("rematch_cooldown", str(DEFAULT_REMATCH_COOLDOWN)))
 
 
 class MatchmakingQueue:
@@ -35,7 +39,7 @@ class MatchmakingQueue:
         p1_join = self.join_times.get(p1_id, 0)
         p2_join = self.join_times.get(p2_id, 0)
         later_join = max(p1_join, p2_join)
-        return time.time() - later_join < REMATCH_COOLDOWN
+        return time.time() - later_join < get_rematch_cooldown()
 
     def add_player(self, discord_id: str, username: str) -> dict:
         player = get_or_create_player(discord_id, username)
