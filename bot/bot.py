@@ -763,4 +763,30 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         vote_timers[payload.message_id] = task
 
 
+@bot.event
+async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
+    # Ignore bot's own reactions
+    if payload.user_id == bot.user.id:
+        return
+
+    emoji = str(payload.emoji)
+    if emoji not in (REACT_P1, REACT_P2):
+        return
+
+    votes = match_votes.get(payload.message_id)
+    if votes is None:
+        return
+
+    user_id = str(payload.user_id)
+
+    # Only clear if this was their current vote
+    if votes.get(user_id) == emoji:
+        del votes[user_id]
+
+        # Cancel the timer since the vote was withdrawn
+        timer = vote_timers.pop(payload.message_id, None)
+        if timer:
+            timer.cancel()
+
+
 bot.run(TOKEN)
