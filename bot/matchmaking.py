@@ -124,7 +124,7 @@ def build_match_embed(p1: dict, p2: dict, match_id: int, court: str) -> discord.
     )
     embed.add_field(
         name="Match Settings",
-        value=f"**Court:** {court}\n**Ball Speed:** High\n**Mode:** Classic",
+        value=f"**Court:** {court}\n**Ball Speed:** High\n**Mode:** Classic\n**Match Length:** Quick Play",
         inline=False,
     )
     embed.set_footer(
