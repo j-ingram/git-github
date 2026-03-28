@@ -65,6 +65,9 @@ class MatchmakingQueue:
         players = list(self.queue.values())
         players.sort(key=lambda p: p["elo"])
 
+        print(f"[Matchmaking] Queue has {len(players)} players: "
+              + ", ".join(f"{p['username']}({p['elo']})" for p in players))
+
         # Build sorted candidate pairs by Elo difference
         candidates = []
         for i in range(len(players) - 1):
@@ -72,21 +75,33 @@ class MatchmakingQueue:
             candidates.append((diff, players[i], players[i + 1]))
         candidates.sort(key=lambda c: c[0])
 
+        print(f"[Matchmaking] Candidate pairs: "
+              + ", ".join(f"{a['username']} vs {b['username']} (diff={d})" for d, a, b in candidates))
+
         # Find the best pair that isn't on cooldown
         best_pair = None
         for diff, a, b in candidates:
-            if not self._is_on_cooldown(a["discord_id"], b["discord_id"]):
+            on_cd = self._is_on_cooldown(a["discord_id"], b["discord_id"])
+            print(f"[Matchmaking] Checking {a['username']} vs {b['username']}: cooldown={on_cd}")
+            if not on_cd:
                 best_pair = (a, b)
                 break
 
         if best_pair is None:
+            print("[Matchmaking] No valid pair found")
             return None
 
         p1, p2 = best_pair
 
         # Check neither player has an unfinished match
-        if get_pending_match(p1["discord_id"]) or get_pending_match(p2["discord_id"]):
+        p1_pending = get_pending_match(p1["discord_id"])
+        p2_pending = get_pending_match(p2["discord_id"])
+        if p1_pending or p2_pending:
+            print(f"[Matchmaking] Blocked by pending match: "
+                  f"{p1['username']}={p1_pending is not None}, {p2['username']}={p2_pending is not None}")
             return None
+
+        print(f"[Matchmaking] Matching {p1['username']} vs {p2['username']}")
 
         # Remove from queue and clean up join times
         self.queue.pop(p1["discord_id"], None)
