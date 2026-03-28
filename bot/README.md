@@ -7,7 +7,7 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 - **Queue-based matchmaking** — Players join a queue and are matched with the closest-rated opponent
 - **Elo rating system** — Chess-style Elo ratings (K-factor: 32, default rating: 1000)
 - **Private match threads** — Each match gets its own private thread for isolated communication
-- **Reaction-based reporting** — Players react with the winner's icon to report results
+- **Reaction-based reporting** — Players react with the winner's number (1️⃣ or 2️⃣) to report results
 - **Dispute handling** — Conflicting votes flag a dispute; admins can `/resolve` or `/admin_cancel`
 - **Rematch cooldown** — 60-second cooldown prevents the same pair from being matched repeatedly, starting from when they join the queue
 - **Auto-matching** — Background task checks the queue every 10 seconds and pairs players once cooldowns expire
@@ -125,7 +125,7 @@ sudo journalctl -u mario-tennis-bot -f    # View live logs
 4. A background task checks the queue every 10 seconds for newly valid matches
 5. A private thread is created with match instructions, game settings, and the no-show rule
 6. Players arrange a private match in Mario Tennis using the settings shown (court, ball speed, mode, match length)
-7. After playing, both players react on the match embed with the winner's icon (🔴 or 🔵)
+7. After playing, both players react on the match embed with the winner's number (1️⃣ or 2️⃣)
 8. If both players agree, the match is resolved and Elo is updated
 9. If players disagree, the match is flagged as disputed — an admin can use `/resolve` or `/admin_cancel`
 10. If only one player votes, the other has 5 minutes to respond or the result is accepted by default
