@@ -65,11 +65,13 @@ Admin commands require your Discord user ID to be listed in `ADMIN_IDS` in the `
 DISCORD_TOKEN=your-bot-token-here
 ADMIN_IDS=208693717563998209
 MATCH_LOG_CHANNEL=your-channel-id-here
+MATCHMAKING_CHANNEL=your-channel-id-here
 ```
 
 - `DISCORD_TOKEN` — Your bot token from the Discord Developer Portal
 - `ADMIN_IDS` — Comma-separated list of Discord user IDs that can use admin commands (e.g. `208693717563998209,123456789`)
 - `MATCH_LOG_CHANNEL` — (Optional) Channel ID where match results and cancellations are logged. Create a dedicated channel and restrict Send Messages to the bot only.
+- `MATCHMAKING_CHANNEL` — (Optional) Channel ID where player commands (`/join`, `/leave`, `/queue`, `/cancel`, `/stats`, `/leaderboard`) are allowed. If not set, commands work in any channel. Admin commands work from any channel regardless.
 
 To find your Discord user ID: enable **Developer Mode** in Discord Settings > Advanced, then right-click your username and select **Copy User ID**.
 

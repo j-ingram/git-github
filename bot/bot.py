@@ -33,10 +33,20 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 ADMIN_IDS = set(os.getenv("ADMIN_IDS", "").split(","))
 MATCH_LOG_CHANNEL = os.getenv("MATCH_LOG_CHANNEL")
+MATCHMAKING_CHANNEL = os.getenv("MATCHMAKING_CHANNEL")
 
 
 def is_admin(interaction: discord.Interaction) -> bool:
     return str(interaction.user.id) in ADMIN_IDS
+
+
+def is_matchmaking_channel(interaction: discord.Interaction) -> bool:
+    if not MATCHMAKING_CHANNEL:
+        return True  # No restriction if not configured
+    return str(interaction.channel_id) == MATCHMAKING_CHANNEL
+
+
+WRONG_CHANNEL_MSG = f"This command can only be used in <#{MATCHMAKING_CHANNEL}>." if MATCHMAKING_CHANNEL else ""
 
 
 intents = discord.Intents.default()
@@ -252,6 +262,10 @@ async def before_check_queue():
 
 @tree.command(name="join", description="Join the matchmaking queue")
 async def join_queue(interaction: discord.Interaction):
+    if not is_matchmaking_channel(interaction):
+        await interaction.response.send_message(WRONG_CHANNEL_MSG, ephemeral=True)
+        return
+
     discord_id = str(interaction.user.id)
     username = interaction.user.display_name
 
@@ -294,6 +308,10 @@ async def join_queue(interaction: discord.Interaction):
 
 @tree.command(name="leave", description="Leave the matchmaking queue")
 async def leave_queue(interaction: discord.Interaction):
+    if not is_matchmaking_channel(interaction):
+        await interaction.response.send_message(WRONG_CHANNEL_MSG, ephemeral=True)
+        return
+
     discord_id = str(interaction.user.id)
     if queue.remove_player(discord_id):
         queue_channels.pop(discord_id, None)
@@ -308,6 +326,10 @@ async def leave_queue(interaction: discord.Interaction):
 
 @tree.command(name="queue", description="See who is in the matchmaking queue")
 async def view_queue(interaction: discord.Interaction):
+    if not is_matchmaking_channel(interaction):
+        await interaction.response.send_message(WRONG_CHANNEL_MSG, ephemeral=True)
+        return
+
     if queue.queue_size() == 0:
         await interaction.response.send_message(
             "The queue is empty.", ephemeral=True
@@ -334,6 +356,10 @@ async def view_queue(interaction: discord.Interaction):
 async def stats(
     interaction: discord.Interaction, player: discord.Member | None = None
 ):
+    if not is_matchmaking_channel(interaction):
+        await interaction.response.send_message(WRONG_CHANNEL_MSG, ephemeral=True)
+        return
+
     target = player or interaction.user
     discord_id = str(target.id)
     p = get_or_create_player(discord_id, target.display_name)
@@ -356,6 +382,10 @@ async def stats(
 
 @tree.command(name="leaderboard", description="View the top players")
 async def leaderboard(interaction: discord.Interaction):
+    if not is_matchmaking_channel(interaction):
+        await interaction.response.send_message(WRONG_CHANNEL_MSG, ephemeral=True)
+        return
+
     top = get_leaderboard(10)
     if not top:
         await interaction.response.send_message(
@@ -396,6 +426,10 @@ async def leaderboard(interaction: discord.Interaction):
 
 @tree.command(name="cancel", description="Request to cancel your pending match")
 async def cancel_match(interaction: discord.Interaction):
+    if not is_matchmaking_channel(interaction):
+        await interaction.response.send_message(WRONG_CHANNEL_MSG, ephemeral=True)
+        return
+
     discord_id = str(interaction.user.id)
     pending = get_pending_match(discord_id)
     if not pending:
