@@ -16,12 +16,23 @@ from database import (
     update_player_username,
     set_match_thread,
     get_match_by_message,
+    reset_season,
+    set_player_elo,
+    ban_player,
+    unban_player,
+    is_banned,
 )
 from elo import calculate_new_ratings
 from matchmaking import MatchmakingQueue, build_match_embed, pick_court, REACT_P1, REACT_P2
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
+ADMIN_IDS = set(os.getenv("ADMIN_IDS", "").split(","))
+
+
+def is_admin(interaction: discord.Interaction) -> bool:
+    return str(interaction.user.id) in ADMIN_IDS
+
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -125,6 +136,12 @@ async def join_queue(interaction: discord.Interaction):
     existing = get_player(discord_id)
     if existing and existing["username"] != username:
         update_player_username(discord_id, username)
+
+    if is_banned(discord_id):
+        await interaction.response.send_message(
+            "You are banned from matchmaking.", ephemeral=True
+        )
+        return
 
     if queue.is_in_queue(discord_id):
         await interaction.response.send_message(
@@ -293,6 +310,79 @@ async def cancel_match(interaction: discord.Interaction):
             f"<@{discord_id}> wants to cancel **Match #{match_id}**.\n"
             f"<@{opponent_id}>, type `/cancel` to agree.\n"
             f"If you disagree, the match will be flagged for moderator review."
+        )
+
+
+@tree.command(name="reset_season", description="[Admin] Reset all players' Elo to 1000 and clear win/loss records")
+async def reset_season_cmd(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    count = reset_season()
+    await interaction.response.send_message(
+        f"Season has been reset! {count} player(s) reset to 1000 Elo with 0 wins/losses."
+    )
+
+
+@tree.command(name="set_elo", description="[Admin] Set a player's Elo to a specific value")
+@app_commands.describe(player="The player to adjust", elo="The new Elo value")
+async def set_elo_cmd(interaction: discord.Interaction, player: discord.Member, elo: int):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    discord_id = str(player.id)
+    get_or_create_player(discord_id, player.display_name)
+
+    if set_player_elo(discord_id, elo):
+        await interaction.response.send_message(
+            f"**{player.display_name}**'s Elo has been set to **{elo}**."
+        )
+    else:
+        await interaction.response.send_message("Failed to update Elo.", ephemeral=True)
+
+
+@tree.command(name="ban", description="[Admin] Ban a player from matchmaking")
+@app_commands.describe(player="The player to ban", reason="Reason for the ban")
+async def ban_cmd(interaction: discord.Interaction, player: discord.Member, reason: str | None = None):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    discord_id = str(player.id)
+
+    if ban_player(discord_id, str(interaction.user.id), reason):
+        # Remove from queue if they're in it
+        if queue.remove_player(discord_id):
+            queue_channels.pop(discord_id, None)
+
+        msg = f"**{player.display_name}** has been banned from matchmaking."
+        if reason:
+            msg += f"\nReason: {reason}"
+        await interaction.response.send_message(msg)
+    else:
+        await interaction.response.send_message(
+            f"**{player.display_name}** is already banned.", ephemeral=True
+        )
+
+
+@tree.command(name="unban", description="[Admin] Unban a player from matchmaking")
+@app_commands.describe(player="The player to unban")
+async def unban_cmd(interaction: discord.Interaction, player: discord.Member):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    discord_id = str(player.id)
+
+    if unban_player(discord_id):
+        await interaction.response.send_message(
+            f"**{player.display_name}** has been unbanned from matchmaking."
+        )
+    else:
+        await interaction.response.send_message(
+            f"**{player.display_name}** is not banned.", ephemeral=True
         )
 
 

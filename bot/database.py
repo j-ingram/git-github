@@ -22,6 +22,13 @@ def init_db():
             losses INTEGER NOT NULL DEFAULT 0
         );
 
+        CREATE TABLE IF NOT EXISTS bans (
+            discord_id TEXT PRIMARY KEY,
+            banned_by TEXT NOT NULL,
+            reason TEXT,
+            banned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
         CREATE TABLE IF NOT EXISTS matches (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             player1_id TEXT NOT NULL,
@@ -152,6 +159,59 @@ def get_match_by_message(message_id: str) -> dict | None:
     match = cursor.fetchone()
     conn.close()
     return dict(match) if match else None
+
+
+def reset_season():
+    conn = get_connection()
+    conn.execute("UPDATE players SET elo = 1000, wins = 0, losses = 0")
+    conn.commit()
+    count = conn.execute("SELECT COUNT(*) FROM players").fetchone()[0]
+    conn.close()
+    return count
+
+
+def set_player_elo(discord_id: str, elo: int) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE players SET elo = ? WHERE discord_id = ?", (elo, discord_id))
+    conn.commit()
+    updated = cursor.rowcount > 0
+    conn.close()
+    return updated
+
+
+def ban_player(discord_id: str, banned_by: str, reason: str | None = None) -> bool:
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO bans (discord_id, banned_by, reason) VALUES (?, ?, ?)",
+            (discord_id, banned_by, reason),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False
+
+
+def unban_player(discord_id: str) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM bans WHERE discord_id = ?", (discord_id,))
+    conn.commit()
+    removed = cursor.rowcount > 0
+    conn.close()
+    return removed
+
+
+def is_banned(discord_id: str) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM bans WHERE discord_id = ?", (discord_id,))
+    result = cursor.fetchone() is not None
+    conn.close()
+    return result
 
 
 def get_pending_match(player_id: str) -> dict | None:
