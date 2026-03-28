@@ -32,6 +32,7 @@ from matchmaking import MatchmakingQueue, build_match_embed, pick_court, REACT_P
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 ADMIN_IDS = set(os.getenv("ADMIN_IDS", "").split(","))
+MATCH_LOG_CHANNEL = os.getenv("MATCH_LOG_CHANNEL")
 
 
 def is_admin(interaction: discord.Interaction) -> bool:
@@ -58,6 +59,19 @@ queue_channels: dict[str, int] = {}
 vote_timers: dict[int, asyncio.Task] = {}
 
 VOTE_TIMEOUT = 300  # 5 minutes for the other player to vote
+
+
+async def log_to_match_channel(embed: discord.Embed):
+    """Post an embed to the match log channel if configured."""
+    if not MATCH_LOG_CHANNEL:
+        return
+    try:
+        log_channel = bot.get_channel(int(MATCH_LOG_CHANNEL))
+        if log_channel is None:
+            log_channel = await bot.fetch_channel(int(MATCH_LOG_CHANNEL))
+        await log_channel.send(embed=embed)
+    except discord.HTTPException:
+        pass
 
 
 async def resolve_match(match: dict, winner_emoji: str, channel: discord.abc.Messageable, message_id: int):
@@ -99,6 +113,9 @@ async def resolve_match(match: dict, winner_emoji: str, channel: discord.abc.Mes
         inline=False,
     )
     await channel.send(embed=result_embed)
+
+    # Log to match history channel
+    await log_to_match_channel(result_embed)
 
     # Record recent match for cooldown
     queue.record_match(match["player1_id"], match["player2_id"])
@@ -415,6 +432,14 @@ async def cancel_match(interaction: discord.Interaction):
             f"Match #{match_id} has been cancelled by both players. No Elo changes applied."
         )
 
+        # Log cancellation to match history channel
+        cancel_embed = discord.Embed(
+            title=f"Match #{match_id} Cancelled",
+            description=f"<@{pending['player1_id']}> vs <@{pending['player2_id']}>\nCancelled by both players. No Elo changes.",
+            color=discord.Color.light_grey(),
+        )
+        await log_to_match_channel(cancel_embed)
+
         # Archive the thread if it exists
         if pending["thread_id"]:
             try:
@@ -602,6 +627,14 @@ async def admin_cancel_cmd(interaction: discord.Interaction, match_id: int | Non
     await interaction.response.send_message(
         f"**Match #{match['id']}** has been cancelled by admin. No Elo changes applied."
     )
+
+    # Log cancellation to match history channel
+    cancel_embed = discord.Embed(
+        title=f"Match #{match['id']} Cancelled",
+        description=f"<@{match['player1_id']}> vs <@{match['player2_id']}>\nCancelled by admin. No Elo changes.",
+        color=discord.Color.light_grey(),
+    )
+    await log_to_match_channel(cancel_embed)
 
     # Archive the thread if it exists
     if match["thread_id"]:

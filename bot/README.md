@@ -15,8 +15,9 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 - **Match cancellation** — Both players must agree to cancel a match (no Elo change)
 - **No-show protection** — When one player votes, the other has 5 minutes to respond or the result is accepted automatically
 - **Match instructions** — Private threads include step-by-step instructions for setting up the game and the no-show rule
+- **Match history log** — All match results and cancellations are posted to a dedicated channel for admin visibility
 - **Admin commands** — Owner/admin-only commands for season resets, Elo adjustments, player bans, and dispute resolution
-- **Leaderboard** — See the top-ranked players
+- **Leaderboard** — See the top-ranked players with your own position always shown
 
 ## Commands
 
@@ -63,10 +64,12 @@ Admin commands require your Discord user ID to be listed in `ADMIN_IDS` in the `
 ```
 DISCORD_TOKEN=your-bot-token-here
 ADMIN_IDS=208693717563998209
+MATCH_LOG_CHANNEL=your-channel-id-here
 ```
 
 - `DISCORD_TOKEN` — Your bot token from the Discord Developer Portal
 - `ADMIN_IDS` — Comma-separated list of Discord user IDs that can use admin commands (e.g. `208693717563998209,123456789`)
+- `MATCH_LOG_CHANNEL` — (Optional) Channel ID where match results and cancellations are logged. Create a dedicated channel and restrict Send Messages to the bot only.
 
 To find your Discord user ID: enable **Developer Mode** in Discord Settings > Advanced, then right-click your username and select **Copy User ID**.
 
