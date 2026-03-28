@@ -64,14 +64,16 @@ VOTE_TIMEOUT = 300  # 5 minutes for the other player to vote
 async def log_to_match_channel(embed: discord.Embed):
     """Post an embed to the match log channel if configured."""
     if not MATCH_LOG_CHANNEL:
+        print("[Match Log] MATCH_LOG_CHANNEL not set in .env")
         return
     try:
         log_channel = bot.get_channel(int(MATCH_LOG_CHANNEL))
         if log_channel is None:
             log_channel = await bot.fetch_channel(int(MATCH_LOG_CHANNEL))
         await log_channel.send(embed=embed)
-    except discord.HTTPException:
-        pass
+        print(f"[Match Log] Posted to channel {MATCH_LOG_CHANNEL}")
+    except discord.HTTPException as e:
+        print(f"[Match Log] Failed to post: {e}")
 
 
 async def resolve_match(match: dict, winner_emoji: str, channel: discord.abc.Messageable, message_id: int):
