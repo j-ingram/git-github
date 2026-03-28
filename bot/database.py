@@ -139,6 +139,21 @@ def get_leaderboard(limit: int = 10) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def get_player_rank(discord_id: str) -> tuple[int, int] | None:
+    """Return (rank, total_players) for a player, or None if not found."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM players")
+    total = cursor.fetchone()[0]
+    cursor.execute(
+        "SELECT COUNT(*) FROM players AS p2 WHERE p2.elo > (SELECT elo FROM players WHERE discord_id = ?)",
+        (discord_id,),
+    )
+    above = cursor.fetchone()[0]
+    conn.close()
+    return (above + 1, total)
+
+
 def set_match_thread(match_id: int, thread_id: str, message_id: str):
     conn = get_connection()
     conn.execute(

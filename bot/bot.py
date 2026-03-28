@@ -24,6 +24,7 @@ from database import (
     ban_player,
     unban_player,
     is_banned,
+    get_player_rank,
 )
 from elo import calculate_new_ratings
 from matchmaking import MatchmakingQueue, build_match_embed, pick_court, REACT_P1, REACT_P2
@@ -320,11 +321,13 @@ async def stats(
 
     total = p["wins"] + p["losses"]
     win_rate = f"{p['wins'] / total * 100:.1f}%" if total > 0 else "N/A"
+    rank, total_players = get_player_rank(discord_id)
 
     embed = discord.Embed(
         title=f"{p['username']}'s Stats",
         color=discord.Color.purple(),
     )
+    embed.add_field(name="Rank", value=f"#{rank} of {total_players}", inline=True)
     embed.add_field(name="Elo", value=str(p["elo"]), inline=True)
     embed.add_field(name="Wins", value=str(p["wins"]), inline=True)
     embed.add_field(name="Losses", value=str(p["losses"]), inline=True)
@@ -341,13 +344,28 @@ async def leaderboard(interaction: discord.Interaction):
         )
         return
 
+    discord_id = str(interaction.user.id)
+    top_ids = {p["discord_id"] for p in top}
+
     lines = []
     for i, p in enumerate(top, 1):
         medal = {1: "\U0001f947", 2: "\U0001f948", 3: "\U0001f949"}.get(i, f"{i}.")
+        marker = " \u2190 You" if p["discord_id"] == discord_id else ""
         lines.append(
             f"{medal} **{p['username']}** - Elo: {p['elo']} "
-            f"({p['wins']}W / {p['losses']}L)"
+            f"({p['wins']}W / {p['losses']}L){marker}"
         )
+
+    # If the caller isn't in the top 10, append their position
+    if discord_id not in top_ids:
+        caller = get_player(discord_id)
+        if caller:
+            rank, _ = get_player_rank(discord_id)
+            lines.append("...")
+            lines.append(
+                f"{rank}. **{caller['username']}** - Elo: {caller['elo']} "
+                f"({caller['wins']}W / {caller['losses']}L) \u2190 You"
+            )
 
     embed = discord.Embed(
         title="Leaderboard - Mario Tennis",
