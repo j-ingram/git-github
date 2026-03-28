@@ -29,7 +29,10 @@ from database import (
     get_setting,
 )
 from elo import calculate_new_ratings
-from matchmaking import MatchmakingQueue, build_match_embed, pick_court, REACT_P1, REACT_P2
+from matchmaking import (
+    MatchmakingQueue, build_match_embed, pick_court, REACT_P1, REACT_P2,
+    ALL_COURTS, get_enabled_courts, set_enabled_courts,
+)
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -585,6 +588,86 @@ async def set_cooldown_cmd(interaction: discord.Interaction, seconds: int):
     await interaction.response.send_message(
         f"Rematch cooldown has been set to **{seconds} seconds**."
     )
+
+
+@tree.command(name="enable_court", description="[Admin] Enable a court for the match rotation")
+@app_commands.describe(court="The court to enable")
+async def enable_court_cmd(interaction: discord.Interaction, court: str):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    if court not in ALL_COURTS:
+        await interaction.response.send_message(f"**{court}** is not a valid court.", ephemeral=True)
+        return
+
+    enabled = get_enabled_courts()
+    if court in enabled:
+        await interaction.response.send_message(f"**{court}** is already enabled.", ephemeral=True)
+        return
+
+    enabled.append(court)
+    set_enabled_courts(enabled)
+    await interaction.response.send_message(f"**{court}** has been enabled. ({len(enabled)} courts in rotation)")
+
+
+@enable_court_cmd.autocomplete("court")
+async def enable_court_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+    enabled = get_enabled_courts()
+    disabled = [c for c in ALL_COURTS if c not in enabled]
+    return [
+        app_commands.Choice(name=c, value=c)
+        for c in disabled if current.lower() in c.lower()
+    ][:25]
+
+
+@tree.command(name="disable_court", description="[Admin] Disable a court from the match rotation")
+@app_commands.describe(court="The court to disable")
+async def disable_court_cmd(interaction: discord.Interaction, court: str):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    enabled = get_enabled_courts()
+    if court not in enabled:
+        await interaction.response.send_message(f"**{court}** is not currently enabled.", ephemeral=True)
+        return
+
+    if len(enabled) <= 1:
+        await interaction.response.send_message("Cannot disable the last court. At least one must be enabled.", ephemeral=True)
+        return
+
+    enabled.remove(court)
+    set_enabled_courts(enabled)
+    await interaction.response.send_message(f"**{court}** has been disabled. ({len(enabled)} courts in rotation)")
+
+
+@disable_court_cmd.autocomplete("court")
+async def disable_court_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+    enabled = get_enabled_courts()
+    return [
+        app_commands.Choice(name=c, value=c)
+        for c in enabled if current.lower() in c.lower()
+    ][:25]
+
+
+@tree.command(name="list_courts", description="View all courts and their status")
+async def list_courts_cmd(interaction: discord.Interaction):
+    enabled = get_enabled_courts()
+    enabled_lines = [f"\u2705 {c}" for c in ALL_COURTS if c in enabled]
+    disabled_lines = [f"\u274c {c}" for c in ALL_COURTS if c not in enabled]
+
+    description = "**Enabled:**\n" + "\n".join(enabled_lines)
+    if disabled_lines:
+        description += "\n\n**Disabled:**\n" + "\n".join(disabled_lines)
+
+    embed = discord.Embed(
+        title="Court Rotation",
+        description=description,
+        color=discord.Color.teal(),
+    )
+    embed.set_footer(text=f"{len(enabled_lines)} of {len(ALL_COURTS)} courts enabled")
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 async def find_match_from_context(interaction: discord.Interaction, match_id: int | None) -> dict | None:

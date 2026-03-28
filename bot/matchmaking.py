@@ -3,18 +3,34 @@ import time
 
 import discord
 
-from database import get_or_create_player, create_match, get_pending_match, get_setting
+from database import get_or_create_player, create_match, get_pending_match, get_setting, set_setting
 
 REACT_P1 = "\U0001f344"  # 🍄 for player 1
 REACT_P2 = "\u2b50"     # ⭐ for player 2
 
-COURT_TYPES = ("Grass", "Hard", "Clay", "Wood", "Brick", "Carpet", "Sand", "Forest")
+# All valid Mario Tennis courts
+ALL_COURTS = (
+    "Grass", "Hard", "Clay", "Wood", "Brick", "Carpet",
+    "Mushroom", "Sand", "Ice", "Airship", "Forest", "Pinball",
+    "Factory", "Wonder",
+)
+
+DEFAULT_ENABLED_COURTS = "Grass,Hard,Clay,Wood,Brick,Carpet,Sand,Forest"
 
 DEFAULT_REMATCH_COOLDOWN = 60  # default seconds before same pair can be matched again
 
 
 def get_rematch_cooldown() -> int:
     return int(get_setting("rematch_cooldown", str(DEFAULT_REMATCH_COOLDOWN)))
+
+
+def get_enabled_courts() -> list[str]:
+    courts_str = get_setting("enabled_courts", DEFAULT_ENABLED_COURTS)
+    return [c.strip() for c in courts_str.split(",") if c.strip()]
+
+
+def set_enabled_courts(courts: list[str]):
+    set_setting("enabled_courts", ",".join(courts))
 
 
 class MatchmakingQueue:
@@ -107,7 +123,8 @@ class MatchmakingQueue:
 
 
 def pick_court() -> str:
-    return random.choice(COURT_TYPES)
+    courts = get_enabled_courts()
+    return random.choice(courts)
 
 
 def build_match_embed(p1: dict, p2: dict, match_id: int, court: str) -> discord.Embed:

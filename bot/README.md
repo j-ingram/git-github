@@ -11,7 +11,7 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 - **Dispute handling** — Conflicting votes flag a dispute; admins can `/resolve` or `/admin_cancel`
 - **Rematch cooldown** — 60-second cooldown prevents the same pair from being matched repeatedly, starting from when they join the queue
 - **Auto-matching** — Background task checks the queue every 10 seconds and pairs players once cooldowns expire
-- **Random court selection** — A random court is assigned to each match (Grass, Hard, Clay, Wood, Brick, Carpet, Sand, Forest)
+- **Configurable court rotation** — A random court is assigned from the enabled pool. Admins can enable/disable courts from all 14 Mario Tennis courts via commands
 - **Match cancellation** — Both players must agree to cancel a match (no Elo change)
 - **No-show protection** — When one player votes, the other has 5 minutes to respond or the result is accepted automatically
 - **Match instructions** — Private threads include step-by-step instructions for setting up the game and the no-show rule
@@ -43,8 +43,13 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 | `/resolve @winner [match_id]` | Declare the winner of a disputed match | Public |
 | `/admin_cancel [match_id]` | Cancel a match with no Elo change | Public |
 | `/set_cooldown <seconds>` | Set the rematch cooldown duration in seconds (default: 60) | Public |
+| `/enable_court <court>` | Enable a court for the match rotation (autocomplete dropdown) | Public |
+| `/disable_court <court>` | Disable a court from the match rotation (autocomplete dropdown) | Public |
+| `/list_courts` | View all courts and their enabled/disabled status | Ephemeral |
 
 `/resolve` and `/admin_cancel` auto-detect the match when used inside a match thread. When used from any other channel, provide the match ID.
+
+`/enable_court` and `/disable_court` use dynamic autocomplete — the dropdown only shows courts that can be toggled. At least one court must remain enabled.
 
 Admin commands require your Discord user ID to be listed in `ADMIN_IDS` in the `.env` file.
 
