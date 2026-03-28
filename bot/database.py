@@ -214,6 +214,30 @@ def is_banned(discord_id: str) -> bool:
     return result
 
 
+def get_match_by_thread(thread_id: str) -> dict | None:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM matches WHERE thread_id = ? AND winner_id IS NULL",
+        (thread_id,),
+    )
+    match = cursor.fetchone()
+    conn.close()
+    return dict(match) if match else None
+
+
+def get_match_by_id(match_id: int) -> dict | None:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM matches WHERE id = ? AND winner_id IS NULL",
+        (match_id,),
+    )
+    match = cursor.fetchone()
+    conn.close()
+    return dict(match) if match else None
+
+
 def get_pending_match(player_id: str) -> dict | None:
     conn = get_connection()
     cursor = conn.cursor()

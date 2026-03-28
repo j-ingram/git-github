@@ -17,6 +17,8 @@ from database import (
     update_player_username,
     set_match_thread,
     get_match_by_message,
+    get_match_by_thread,
+    get_match_by_id,
     reset_season,
     set_player_elo,
     ban_player,
@@ -474,6 +476,114 @@ async def unban_cmd(interaction: discord.Interaction, player: discord.Member):
         await interaction.response.send_message(
             f"**{player.display_name}** is not banned.", ephemeral=True
         )
+
+
+async def find_match_from_context(interaction: discord.Interaction, match_id: int | None) -> dict | None:
+    """Find a pending match by ID or by detecting the current thread."""
+    if match_id is not None:
+        return get_match_by_id(match_id)
+
+    # Try to detect from thread context
+    if isinstance(interaction.channel, discord.Thread):
+        return get_match_by_thread(str(interaction.channel.id))
+
+    return None
+
+
+@tree.command(name="resolve", description="[Admin] Declare the winner of a match")
+@app_commands.describe(winner="The player to declare as winner", match_id="Match ID (optional if used inside the match thread)")
+async def resolve_cmd(interaction: discord.Interaction, winner: discord.Member, match_id: int | None = None):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    match = await find_match_from_context(interaction, match_id)
+    if not match:
+        await interaction.response.send_message(
+            "No pending match found. Provide a match ID or use this command inside a match thread.",
+            ephemeral=True,
+        )
+        return
+
+    winner_id = str(winner.id)
+    if winner_id not in (match["player1_id"], match["player2_id"]):
+        await interaction.response.send_message(
+            "That player is not part of this match.", ephemeral=True
+        )
+        return
+
+    # Determine winner emoji to reuse resolve_match
+    winner_emoji = REACT_P1 if winner_id == match["player1_id"] else REACT_P2
+
+    # Cancel any pending vote timer
+    if match["message_id"]:
+        timer = vote_timers.pop(int(match["message_id"]), None)
+        if timer:
+            timer.cancel()
+
+    await interaction.response.send_message(
+        f"**Match #{match['id']}** resolved by admin. Winner: **{winner.display_name}**"
+    )
+
+    # Resolve in the match thread if it exists
+    thread = None
+    if match["thread_id"]:
+        try:
+            thread = bot.get_channel(int(match["thread_id"]))
+            if thread is None:
+                thread = await bot.fetch_channel(int(match["thread_id"]))
+        except discord.HTTPException:
+            pass
+
+    channel = thread or interaction.channel
+    await resolve_match(match, winner_emoji, channel, int(match["message_id"]) if match["message_id"] else 0)
+
+
+@tree.command(name="admin_cancel", description="[Admin] Cancel a match with no Elo change")
+@app_commands.describe(match_id="Match ID (optional if used inside the match thread)")
+async def admin_cancel_cmd(interaction: discord.Interaction, match_id: int | None = None):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    match = await find_match_from_context(interaction, match_id)
+    if not match:
+        await interaction.response.send_message(
+            "No pending match found. Provide a match ID or use this command inside a match thread.",
+            ephemeral=True,
+        )
+        return
+
+    # Cancel any pending vote timer
+    if match["message_id"]:
+        timer = vote_timers.pop(int(match["message_id"]), None)
+        if timer:
+            timer.cancel()
+        match_votes.pop(int(match["message_id"]), None)
+
+    cancel_requests.pop(match["id"], None)
+
+    complete_match(
+        match["id"],
+        "cancelled",
+        match["player1_elo_before"],
+        match["player2_elo_before"],
+    )
+
+    await interaction.response.send_message(
+        f"**Match #{match['id']}** has been cancelled by admin. No Elo changes applied."
+    )
+
+    # Archive the thread if it exists
+    if match["thread_id"]:
+        try:
+            thread = bot.get_channel(int(match["thread_id"]))
+            if thread is None:
+                thread = await bot.fetch_channel(int(match["thread_id"]))
+            await thread.send(f"**Match #{match['id']} cancelled by admin.** Thread will now close.")
+            await thread.edit(archived=True, locked=True)
+        except discord.HTTPException:
+            pass
 
 
 @bot.event
