@@ -48,7 +48,7 @@ systemctl enable mario-tennis-bot
 echo ""
 echo "=== Setup complete ==="
 echo "Next steps:"
-echo "  1. Edit $APP_DIR/bot/.env and set your DISCORD_TOKEN"
+echo "  1. Edit $APP_DIR/bot/.env and set your DISCORD_TOKEN and ADMIN_IDS"
 echo "  2. Start the bot: systemctl start mario-tennis-bot"
 echo "  3. Check status: systemctl status mario-tennis-bot"
 echo "  4. View logs: journalctl -u mario-tennis-bot -f"
