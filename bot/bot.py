@@ -334,6 +334,9 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
             )
             await channel.send(embed=result_embed)
 
+            # Record recent match for cooldown
+            queue.record_match(match["player1_id"], match["player2_id"])
+
             # Clean up
             match_votes.pop(payload.message_id, None)
             cancel_requests.pop(match["id"], None)

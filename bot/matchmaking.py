@@ -1,4 +1,5 @@
 import random
+import time
 
 import discord
 
@@ -9,11 +10,29 @@ REACT_P2 = "\U0001f535"  # Blue circle for player 2
 
 COURT_TYPES = ("Grass", "Hard", "Clay", "Wood", "Brick", "Carpet", "Sand", "Forest")
 
+REMATCH_COOLDOWN = 60  # seconds before same pair can be matched again
+
 
 class MatchmakingQueue:
     def __init__(self):
         # dict of discord_id -> {discord_id, username, elo}
         self.queue: dict[str, dict] = {}
+        # Track recent matches: {frozenset(p1_id, p2_id): timestamp}
+        self.recent_matches: dict[frozenset[str], float] = {}
+
+    def record_match(self, p1_id: str, p2_id: str):
+        self.recent_matches[frozenset((p1_id, p2_id))] = time.time()
+
+    def _is_on_cooldown(self, p1_id: str, p2_id: str) -> bool:
+        pair = frozenset((p1_id, p2_id))
+        last_time = self.recent_matches.get(pair)
+        if last_time is None:
+            return False
+        if time.time() - last_time < REMATCH_COOLDOWN:
+            return True
+        # Cooldown expired, clean up
+        del self.recent_matches[pair]
+        return False
 
     def add_player(self, discord_id: str, username: str) -> dict:
         player = get_or_create_player(discord_id, username)
@@ -32,7 +51,8 @@ class MatchmakingQueue:
     def find_match(self) -> tuple[dict, dict, int] | None:
         """Find the best match in the queue (two players with closest Elo).
 
-        Returns (player1, player2, match_id) or None if fewer than 2 players.
+        Skips pairs that have played each other within the cooldown period.
+        Returns (player1, player2, match_id) or None if no valid match exists.
         """
         if len(self.queue) < 2:
             return None
@@ -40,13 +60,19 @@ class MatchmakingQueue:
         players = list(self.queue.values())
         players.sort(key=lambda p: p["elo"])
 
-        best_pair = None
-        best_diff = float("inf")
+        # Build sorted candidate pairs by Elo difference
+        candidates = []
         for i in range(len(players) - 1):
             diff = abs(players[i]["elo"] - players[i + 1]["elo"])
-            if diff < best_diff:
-                best_diff = diff
-                best_pair = (players[i], players[i + 1])
+            candidates.append((diff, players[i], players[i + 1]))
+        candidates.sort(key=lambda c: c[0])
+
+        # Find the best pair that isn't on cooldown
+        best_pair = None
+        for diff, a, b in candidates:
+            if not self._is_on_cooldown(a["discord_id"], b["discord_id"]):
+                best_pair = (a, b)
+                break
 
         if best_pair is None:
             return None
