@@ -224,7 +224,9 @@ async def try_create_match(channel: discord.TextChannel) -> bool:
         f"4. After the match, both players react above with the winner's icon ({REACT_P1} or {REACT_P2})\n\n"
         f"**No-show rule:** If your opponent does not respond in this thread within 5 minutes, "
         f"report yourself as the winner by reacting above. If they don't dispute within 5 minutes, "
-        f"the result will be accepted automatically."
+        f"the result will be accepted automatically.\n\n"
+        f"**Cancellation:** If both players agree not to play, either player can type `/cancel`. "
+        f"The other player must also type `/cancel` to confirm. No Elo changes will be applied."
     )
 
     set_match_thread(match_id, str(thread.id), str(match_msg.id))
