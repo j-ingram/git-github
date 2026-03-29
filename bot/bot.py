@@ -40,6 +40,7 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 ADMIN_IDS = set(os.getenv("ADMIN_IDS", "").split(","))
 MATCH_LOG_CHANNEL = os.getenv("MATCH_LOG_CHANNEL")
 MATCHMAKING_CHANNEL = os.getenv("MATCHMAKING_CHANNEL")
+GUILD_ID = os.getenv("GUILD_ID")
 
 
 def is_admin(interaction: discord.Interaction) -> bool:
@@ -196,7 +197,12 @@ async def vote_timeout(message_id: int, channel_id: int, match_id_str: str, vote
 @bot.event
 async def on_ready():
     init_db()
-    await tree.sync()
+    if GUILD_ID:
+        guild = discord.Object(id=int(GUILD_ID))
+        tree.copy_global_to(guild=guild)
+        await tree.sync(guild=guild)
+    else:
+        await tree.sync()
     if not check_queue_matches.is_running():
         check_queue_matches.start()
     if not check_expired_matches.is_running():
