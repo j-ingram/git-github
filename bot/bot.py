@@ -48,7 +48,12 @@ def is_admin(interaction: discord.Interaction) -> bool:
 def is_matchmaking_channel(interaction: discord.Interaction) -> bool:
     if not MATCHMAKING_CHANNEL:
         return True  # No restriction if not configured
-    return str(interaction.channel_id) == MATCHMAKING_CHANNEL
+    if str(interaction.channel_id) == MATCHMAKING_CHANNEL:
+        return True
+    # Allow match threads that are children of the matchmaking channel
+    if isinstance(interaction.channel, discord.Thread):
+        return str(interaction.channel.parent_id) == MATCHMAKING_CHANNEL
+    return False
 
 
 WRONG_CHANNEL_MSG = f"This command can only be used in <#{MATCHMAKING_CHANNEL}>." if MATCHMAKING_CHANNEL else ""
