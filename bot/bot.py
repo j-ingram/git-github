@@ -653,6 +653,10 @@ async def disable_court_autocomplete(interaction: discord.Interaction, current: 
 
 @tree.command(name="list_courts", description="View all courts and their status")
 async def list_courts_cmd(interaction: discord.Interaction):
+    if not is_matchmaking_channel(interaction):
+        await interaction.response.send_message(WRONG_CHANNEL_MSG, ephemeral=True)
+        return
+
     enabled = get_enabled_courts()
     enabled_lines = [f"\u2705 {c}" for c in ALL_COURTS if c in enabled]
     disabled_lines = [f"\u274c {c}" for c in ALL_COURTS if c not in enabled]

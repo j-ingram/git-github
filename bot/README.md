@@ -31,6 +31,7 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 | `/cancel` | Cancel your pending match (both players must agree) | Public |
 | `/stats [player]` | View your or another player's stats | Ephemeral |
 | `/leaderboard` | View the top 10 players | Ephemeral |
+| `/list_courts` | View all courts and their enabled/disabled status | Ephemeral |
 
 ### Admin Commands
 
@@ -45,7 +46,6 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 | `/set_cooldown <seconds>` | Set the rematch cooldown duration in seconds (default: 60) | Public |
 | `/enable_court <court>` | Enable a court for the match rotation (autocomplete dropdown) | Public |
 | `/disable_court <court>` | Disable a court from the match rotation (autocomplete dropdown) | Public |
-| `/list_courts` | View all courts and their enabled/disabled status | Ephemeral |
 
 `/resolve` and `/admin_cancel` auto-detect the match when used inside a match thread. When used from any other channel, provide the match ID.
 
