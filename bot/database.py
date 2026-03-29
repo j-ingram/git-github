@@ -281,6 +281,21 @@ def get_setting(key: str, default: str = None) -> str | None:
     return row["value"] if row else default
 
 
+def get_expired_matches(minutes: int = 30) -> list[dict]:
+    """Return pending matches older than the given number of minutes, excluding disputed ones."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """SELECT * FROM matches
+           WHERE winner_id IS NULL
+           AND created_at <= datetime('now', ?)""",
+        (f"-{minutes} minutes",),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def set_setting(key: str, value: str):
     conn = get_connection()
     conn.execute(

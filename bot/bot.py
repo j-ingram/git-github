@@ -27,6 +27,7 @@ from database import (
     get_player_rank,
     set_setting,
     get_setting,
+    get_expired_matches,
 )
 from elo import calculate_new_ratings
 from matchmaking import (
@@ -79,6 +80,7 @@ queue_channels: dict[str, int] = {}
 vote_timers: dict[int, asyncio.Task] = {}
 
 VOTE_TIMEOUT = 300  # 5 minutes for the other player to vote
+MATCH_EXPIRE_MINUTES = 30  # auto-cancel matches after 30 minutes
 
 
 async def log_to_match_channel(embed: discord.Embed):
@@ -189,6 +191,8 @@ async def on_ready():
     await tree.sync()
     if not check_queue_matches.is_running():
         check_queue_matches.start()
+    if not check_expired_matches.is_running():
+        check_expired_matches.start()
     print(f"Bot is online as {bot.user}")
 
 
@@ -272,6 +276,62 @@ async def before_check_queue():
     await bot.wait_until_ready()
 
 
+@tasks.loop(minutes=5)
+async def check_expired_matches():
+    """Auto-cancel matches that have been pending for too long without a result."""
+    expired = get_expired_matches(MATCH_EXPIRE_MINUTES)
+    for match in expired:
+        # Skip disputed matches (both players voted differently)
+        if match["message_id"]:
+            votes = match_votes.get(int(match["message_id"]), {})
+            if match["player1_id"] in votes and match["player2_id"] in votes:
+                continue  # Disputed — leave for admin
+
+        # Cancel the match
+        complete_match(
+            match["id"],
+            "expired",
+            match["player1_elo_before"],
+            match["player2_elo_before"],
+        )
+
+        # Clean up in-memory tracking
+        if match["message_id"]:
+            msg_id = int(match["message_id"])
+            match_votes.pop(msg_id, None)
+            timer = vote_timers.pop(msg_id, None)
+            if timer:
+                timer.cancel()
+        cancel_requests.pop(match["id"], None)
+
+        # Notify in the thread and close it
+        if match["thread_id"]:
+            try:
+                thread = bot.get_channel(int(match["thread_id"]))
+                if thread is None:
+                    thread = await bot.fetch_channel(int(match["thread_id"]))
+                await thread.send(
+                    f"**Match #{match['id']} has been automatically cancelled** — "
+                    f"no result was reported within {MATCH_EXPIRE_MINUTES} minutes. No Elo changes applied."
+                )
+                await thread.edit(archived=True, locked=True)
+            except discord.HTTPException:
+                pass
+
+        # Log to match history channel
+        expire_embed = discord.Embed(
+            title=f"Match #{match['id']} Expired",
+            description=f"<@{match['player1_id']}> vs <@{match['player2_id']}>\nAuto-cancelled after {MATCH_EXPIRE_MINUTES} minutes. No Elo changes.",
+            color=discord.Color.light_grey(),
+        )
+        await log_to_match_channel(expire_embed)
+
+
+@check_expired_matches.before_loop
+async def before_check_expired():
+    await bot.wait_until_ready()
+
+
 @tree.command(name="join", description="Join the matchmaking queue")
 async def join_queue(interaction: discord.Interaction):
     if not is_matchmaking_channel(interaction):
@@ -303,6 +363,7 @@ async def join_queue(interaction: discord.Interaction):
         await interaction.response.send_message(
             f"You have an unfinished match (#{pending['id']}). "
             "Finish your current match or use `/cancel` to cancel it. "
+            f"The match will automatically close after {MATCH_EXPIRE_MINUTES} minutes if no result is reported. "
             "If your thread was deleted, ask an admin to run "
             f"`/admin_cancel {pending['id']}`.",
             ephemeral=True,

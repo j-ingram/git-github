@@ -13,6 +13,7 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 - **Auto-matching** — Background task checks the queue every 10 seconds and pairs players once cooldowns expire
 - **Configurable court rotation** — A random court is assigned from the enabled pool. Admins can enable/disable courts from all 14 Mario Tennis courts via commands
 - **Match cancellation** — Both players must agree to cancel a match (no Elo change)
+- **Auto-expire** — Matches with no result reported after 30 minutes are automatically cancelled (disputed matches stay open for admin resolution)
 - **No-show protection** — When one player votes, the other has 5 minutes to respond or the result is accepted automatically
 - **Match instructions** — Private threads include step-by-step instructions for setting up the game and the no-show rule
 - **Match history log** — All match results and cancellations are posted to a dedicated channel for admin visibility
