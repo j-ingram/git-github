@@ -201,6 +201,8 @@ async def on_ready():
         guild = discord.Object(id=int(GUILD_ID))
         tree.copy_global_to(guild=guild)
         await tree.sync(guild=guild)
+        tree.clear_commands(guild=None)
+        await tree.sync()
     else:
         await tree.sync()
     if not check_queue_matches.is_running():
