@@ -294,7 +294,7 @@ async def before_check_queue():
     await bot.wait_until_ready()
 
 
-@tasks.loop(minutes=5)
+@tasks.loop(minutes=1)
 async def check_expired_matches():
     """Auto-cancel matches that have been pending for too long without a result."""
     expire_mins = get_match_expire_minutes()
