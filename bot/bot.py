@@ -238,7 +238,9 @@ async def try_create_match(channel: discord.TextChannel) -> bool:
         f"report yourself as the winner by reacting above. If they don't dispute within {get_vote_timeout() // 60} minute(s), "
         f"the result will be accepted automatically.\n\n"
         f"**Cancellation:** If both players agree not to play, either player can type `/cancel`. "
-        f"The other player must also type `/cancel` to confirm. No Elo changes will be applied."
+        f"The other player must also type `/cancel` to confirm. No Elo changes will be applied.\n\n"
+        f"**Auto-expire:** If no result is reported within **{get_match_expire_minutes()} minutes**, "
+        f"this match will be automatically cancelled with no Elo changes."
     )
 
     set_match_thread(match_id, str(thread.id), str(match_msg.id))
