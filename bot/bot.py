@@ -295,7 +295,9 @@ async def join_queue(interaction: discord.Interaction):
     if pending:
         await interaction.response.send_message(
             f"You have an unfinished match (#{pending['id']}). "
-            "Finish your current match first.",
+            "Finish your current match or use `/cancel` to cancel it. "
+            "If your thread was deleted, ask an admin to run "
+            f"`/admin_cancel {pending['id']}`.",
             ephemeral=True,
         )
         return
