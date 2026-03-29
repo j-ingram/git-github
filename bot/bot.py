@@ -79,8 +79,16 @@ queue_channels: dict[str, int] = {}
 # Track vote timeout tasks: {message_id: asyncio.Task}
 vote_timers: dict[int, asyncio.Task] = {}
 
-VOTE_TIMEOUT = 300  # 5 minutes for the other player to vote
-MATCH_EXPIRE_MINUTES = 30  # auto-cancel matches after 30 minutes
+DEFAULT_VOTE_TIMEOUT = 300  # 5 minutes default
+DEFAULT_MATCH_EXPIRE = 30  # 30 minutes default
+
+
+def get_vote_timeout() -> int:
+    return int(get_setting("vote_timeout", str(DEFAULT_VOTE_TIMEOUT)))
+
+
+def get_match_expire_minutes() -> int:
+    return int(get_setting("match_expire_minutes", str(DEFAULT_MATCH_EXPIRE)))
 
 
 async def log_to_match_channel(embed: discord.Embed):
@@ -159,7 +167,7 @@ async def resolve_match(match: dict, winner_emoji: str, channel: discord.abc.Mes
 
 async def vote_timeout(message_id: int, channel_id: int, match_id_str: str, voter_id: str, other_id: str, voter_emoji: str):
     """Wait 5 minutes, then accept the first voter's result if the other player hasn't voted."""
-    await asyncio.sleep(VOTE_TIMEOUT)
+    await asyncio.sleep(get_vote_timeout())
 
     votes = match_votes.get(message_id)
     if votes is None:
@@ -179,7 +187,7 @@ async def vote_timeout(message_id: int, channel_id: int, match_id_str: str, vote
                 return
 
         await channel.send(
-            f"<@{other_id}> did not respond within 5 minutes. "
+            f"<@{other_id}> did not respond in time. "
             f"<@{voter_id}>'s result has been accepted."
         )
         await resolve_match(match, voter_emoji, channel, message_id)
@@ -226,8 +234,8 @@ async def try_create_match(channel: discord.TextChannel) -> bool:
         f"2. The other player joins using the room code\n"
         f"3. Play with the settings shown above: **{court}** court, **High** ball speed, **Classic** mode, **Quick Play**\n"
         f"4. After the match, both players react above with the winner's icon ({REACT_P1} or {REACT_P2})\n\n"
-        f"**No-show rule:** If your opponent does not respond in this thread within 5 minutes, "
-        f"report yourself as the winner by reacting above. If they don't dispute within 5 minutes, "
+        f"**No-show rule:** If your opponent does not respond in this thread within {get_vote_timeout() // 60} minute(s), "
+        f"report yourself as the winner by reacting above. If they don't dispute within {get_vote_timeout() // 60} minute(s), "
         f"the result will be accepted automatically.\n\n"
         f"**Cancellation:** If both players agree not to play, either player can type `/cancel`. "
         f"The other player must also type `/cancel` to confirm. No Elo changes will be applied."
@@ -279,7 +287,8 @@ async def before_check_queue():
 @tasks.loop(minutes=5)
 async def check_expired_matches():
     """Auto-cancel matches that have been pending for too long without a result."""
-    expired = get_expired_matches(MATCH_EXPIRE_MINUTES)
+    expire_mins = get_match_expire_minutes()
+    expired = get_expired_matches(expire_mins)
     for match in expired:
         # Skip disputed matches (both players voted differently)
         if match["message_id"]:
@@ -312,7 +321,7 @@ async def check_expired_matches():
                     thread = await bot.fetch_channel(int(match["thread_id"]))
                 await thread.send(
                     f"**Match #{match['id']} has been automatically cancelled** — "
-                    f"no result was reported within {MATCH_EXPIRE_MINUTES} minutes. No Elo changes applied."
+                    f"no result was reported within {expire_mins} minutes. No Elo changes applied."
                 )
                 await thread.edit(archived=True, locked=True)
             except discord.HTTPException:
@@ -321,7 +330,7 @@ async def check_expired_matches():
         # Log to match history channel
         expire_embed = discord.Embed(
             title=f"Match #{match['id']} Expired",
-            description=f"<@{match['player1_id']}> vs <@{match['player2_id']}>\nAuto-cancelled after {MATCH_EXPIRE_MINUTES} minutes. No Elo changes.",
+            description=f"<@{match['player1_id']}> vs <@{match['player2_id']}>\nAuto-cancelled after {expire_mins} minutes. No Elo changes.",
             color=discord.Color.light_grey(),
         )
         await log_to_match_channel(expire_embed)
@@ -363,7 +372,7 @@ async def join_queue(interaction: discord.Interaction):
         await interaction.response.send_message(
             f"You have an unfinished match (#{pending['id']}). "
             "Finish your current match or use `/cancel` to cancel it. "
-            f"The match will automatically close after {MATCH_EXPIRE_MINUTES} minutes if no result is reported. "
+            f"The match will automatically close after {get_match_expire_minutes()} minutes if no result is reported. "
             "If your thread was deleted, ask an admin to run "
             f"`/admin_cancel {pending['id']}`.",
             ephemeral=True,
@@ -660,6 +669,40 @@ async def set_cooldown_cmd(interaction: discord.Interaction, seconds: int):
     )
 
 
+@tree.command(name="set_vote_timeout", description="[Admin] Set the no-show vote timeout in seconds")
+@app_commands.describe(seconds="Vote timeout duration in seconds (e.g. 300 for 5 minutes)")
+async def set_vote_timeout_cmd(interaction: discord.Interaction, seconds: int):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    if seconds < 30:
+        await interaction.response.send_message("Vote timeout must be at least 30 seconds.", ephemeral=True)
+        return
+
+    set_setting("vote_timeout", str(seconds))
+    await interaction.response.send_message(
+        f"Vote timeout has been set to **{seconds} seconds** ({seconds // 60} min {seconds % 60} sec)."
+    )
+
+
+@tree.command(name="set_match_expire", description="[Admin] Set the match auto-expire duration in minutes")
+@app_commands.describe(minutes="Minutes before an unreported match is auto-cancelled (e.g. 30)")
+async def set_match_expire_cmd(interaction: discord.Interaction, minutes: int):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    if minutes < 5:
+        await interaction.response.send_message("Match expire time must be at least 5 minutes.", ephemeral=True)
+        return
+
+    set_setting("match_expire_minutes", str(minutes))
+    await interaction.response.send_message(
+        f"Match auto-expire has been set to **{minutes} minutes**."
+    )
+
+
 @tree.command(name="enable_court", description="[Admin] Enable a court for the match rotation")
 @app_commands.describe(court="The court to enable")
 async def enable_court_cmd(interaction: discord.Interaction, court: str):
@@ -925,7 +968,7 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         # First vote — ping the other player and start 5-minute timer
         await channel.send(
             f"<@{other_id}>, your opponent has submitted their result. "
-            f"You have **5 minutes** to react with the winner's icon or their result will be accepted."
+            f"You have **{get_vote_timeout() // 60} minute(s)** to react with the winner's icon or their result will be accepted."
         )
 
         # Cancel any existing timer for this message (in case of re-vote)
