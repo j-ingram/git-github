@@ -240,6 +240,14 @@ async def try_create_match(channel: discord.TextChannel) -> bool:
     await match_msg.add_reaction(REACT_P1)
     await match_msg.add_reaction(REACT_P2)
 
+    banned = get_banned_characters()
+    banned_text = ""
+    if banned:
+        banned_text = (
+            f"\n\n**Banned characters:** The following characters are **banned** and may not be used: "
+            f"**{', '.join(banned)}**. Using a banned character may result in a forfeit."
+        )
+
     await thread.send(
         f"**How to play:**\n"
         f"1. One player creates a **private match** in Mario Tennis and shares the room code here\n"
@@ -253,6 +261,7 @@ async def try_create_match(channel: discord.TextChannel) -> bool:
         f"The other player must also type `/cancel` to confirm. No Elo changes will be applied.\n\n"
         f"**Auto-expire:** If no result is reported within **{get_match_expire_minutes()} minutes**, "
         f"this match will be automatically cancelled with no Elo changes."
+        f"{banned_text}"
     )
 
     set_match_thread(match_id, str(thread.id), str(match_msg.id))
