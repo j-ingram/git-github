@@ -33,6 +33,7 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 | `/stats [player]` | View your or another player's stats | Ephemeral |
 | `/leaderboard` | View the top 10 players | Ephemeral |
 | `/list_courts` | View all courts and their enabled/disabled status | Ephemeral |
+| `/banned_characters` | View all currently banned characters | Ephemeral |
 
 ### Admin Commands
 
@@ -50,6 +51,8 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 | `/set_match_length <length>` | Set the match length: Quick Play or Extended Play (default: Quick Play) | Public |
 | `/enable_court <court>` | Enable a court for the match rotation (autocomplete dropdown) | Public |
 | `/disable_court <court>` | Disable a court from the match rotation (autocomplete dropdown) | Public |
+| `/ban_character <character>` | Ban a character from being used in matches (autocomplete dropdown) | Public |
+| `/unban_character <character>` | Unban a character (autocomplete dropdown) | Public |
 
 `/resolve` and `/admin_cancel` auto-detect the match when used inside a match thread. When used from any other channel, provide the match ID.
 

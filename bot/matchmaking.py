@@ -17,6 +17,17 @@ ALL_COURTS = (
 
 DEFAULT_ENABLED_COURTS = "Grass,Hard,Clay,Wood,Brick,Carpet,Sand,Forest"
 
+ALL_CHARACTERS = (
+    "Mario", "Luigi", "Peach", "Daisy", "Rosalina", "Pauline",
+    "Wario", "Waluigi", "Toad", "Toadette", "Luma", "Yoshi",
+    "Bowser", "Bowser Jr.", "Donkey Kong", "Boo", "Shy Guy",
+    "Koopa Troopa", "Kamek", "Spike", "Diddy Kong", "Chain Chomp",
+    "Birdo", "Koopa Paratroopa", "Petey Piranha", "Piranha Plant",
+    "Boom Boom", "Blooper", "Dry Bowser", "Dry Bones", "Baby Mario",
+    "Baby Luigi", "Baby Peach", "Wiggler", "Nabbit", "Goomba",
+    "Baby Wario", "Baby Waluigi",
+)
+
 DEFAULT_REMATCH_COOLDOWN = 60  # default seconds before same pair can be matched again
 
 
@@ -31,6 +42,17 @@ def get_enabled_courts() -> list[str]:
 
 def set_enabled_courts(courts: list[str]):
     set_setting("enabled_courts", ",".join(courts))
+
+
+def get_banned_characters() -> list[str]:
+    banned_str = get_setting("banned_characters", "")
+    if not banned_str:
+        return []
+    return [c.strip() for c in banned_str.split(",") if c.strip()]
+
+
+def set_banned_characters(characters: list[str]):
+    set_setting("banned_characters", ",".join(characters))
 
 
 class MatchmakingQueue:
@@ -148,9 +170,13 @@ def build_match_embed(p1: dict, p2: dict, match_id: int, court: str) -> discord.
         value=f"Elo: {p2['elo']}",
         inline=True,
     )
+    settings_text = f"**Court:** {court}\n**Ball Speed:** High\n**Mode:** Classic\n**Match Length:** {get_match_length()}"
+    banned = get_banned_characters()
+    if banned:
+        settings_text += f"\n**Banned Characters:** {', '.join(banned)}"
     embed.add_field(
         name="Match Settings",
-        value=f"**Court:** {court}\n**Ball Speed:** High\n**Mode:** Classic\n**Match Length:** {get_match_length()}",
+        value=settings_text,
         inline=False,
     )
     embed.set_footer(

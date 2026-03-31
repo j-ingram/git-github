@@ -33,6 +33,7 @@ from elo import calculate_new_ratings
 from matchmaking import (
     MatchmakingQueue, build_match_embed, pick_court, REACT_P1, REACT_P2,
     ALL_COURTS, get_enabled_courts, set_enabled_courts, get_match_length,
+    ALL_CHARACTERS, get_banned_characters, set_banned_characters,
 )
 
 load_dotenv()
@@ -805,6 +806,87 @@ async def disable_court_autocomplete(interaction: discord.Interaction, current: 
         app_commands.Choice(name=c, value=c)
         for c in enabled if current.lower() in c.lower()
     ][:25]
+
+
+@tree.command(name="ban_character", description="[Admin] Ban a character from being used in matches")
+@app_commands.describe(character="The character to ban")
+async def ban_character_cmd(interaction: discord.Interaction, character: str):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    if character not in ALL_CHARACTERS:
+        await interaction.response.send_message(f"**{character}** is not a valid character.", ephemeral=True)
+        return
+
+    banned = get_banned_characters()
+    if character in banned:
+        await interaction.response.send_message(f"**{character}** is already banned.", ephemeral=True)
+        return
+
+    banned.append(character)
+    set_banned_characters(banned)
+    await interaction.response.send_message(f"**{character}** has been banned. ({len(banned)} character(s) banned)")
+
+
+@ban_character_cmd.autocomplete("character")
+async def ban_character_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+    banned = get_banned_characters()
+    available = [c for c in ALL_CHARACTERS if c not in banned]
+    return [
+        app_commands.Choice(name=c, value=c)
+        for c in available if current.lower() in c.lower()
+    ][:25]
+
+
+@tree.command(name="unban_character", description="[Admin] Unban a character so it can be used in matches")
+@app_commands.describe(character="The character to unban")
+async def unban_character_cmd(interaction: discord.Interaction, character: str):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    banned = get_banned_characters()
+    if character not in banned:
+        await interaction.response.send_message(f"**{character}** is not currently banned.", ephemeral=True)
+        return
+
+    banned.remove(character)
+    set_banned_characters(banned)
+    if banned:
+        await interaction.response.send_message(f"**{character}** has been unbanned. ({len(banned)} character(s) still banned)")
+    else:
+        await interaction.response.send_message(f"**{character}** has been unbanned. No characters are banned.")
+
+
+@unban_character_cmd.autocomplete("character")
+async def unban_character_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+    banned = get_banned_characters()
+    return [
+        app_commands.Choice(name=c, value=c)
+        for c in banned if current.lower() in c.lower()
+    ][:25]
+
+
+@tree.command(name="banned_characters", description="View all currently banned characters")
+async def banned_characters_cmd(interaction: discord.Interaction):
+    if not is_matchmaking_channel(interaction):
+        await interaction.response.send_message(WRONG_CHANNEL_MSG, ephemeral=True)
+        return
+
+    banned = get_banned_characters()
+    if not banned:
+        await interaction.response.send_message("No characters are currently banned.", ephemeral=True)
+        return
+
+    description = "\n".join(f"🚫 {c}" for c in banned)
+    embed = discord.Embed(
+        title="Banned Characters",
+        description=description,
+        color=discord.Color.red(),
+    )
+    embed.set_footer(text=f"{len(banned)} character(s) banned")
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 @tree.command(name="list_courts", description="View all courts and their status")
