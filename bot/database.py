@@ -17,7 +17,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS players (
             discord_id TEXT PRIMARY KEY,
             username TEXT NOT NULL,
-            elo INTEGER NOT NULL DEFAULT 1000,
+            elo INTEGER NOT NULL DEFAULT 1500,
             wins INTEGER NOT NULL DEFAULT 0,
             losses INTEGER NOT NULL DEFAULT 0
         );
@@ -62,7 +62,7 @@ def get_or_create_player(discord_id: str, username: str) -> dict:
     player = cursor.fetchone()
     if player is None:
         cursor.execute(
-            "INSERT INTO players (discord_id, username, elo) VALUES (?, ?, 1000)",
+            "INSERT INTO players (discord_id, username, elo) VALUES (?, ?, 1500)",
             (discord_id, username),
         )
         conn.commit()
@@ -183,7 +183,7 @@ def get_match_by_message(message_id: str) -> dict | None:
 
 def reset_season():
     conn = get_connection()
-    conn.execute("UPDATE players SET elo = 1000, wins = 0, losses = 0")
+    conn.execute("UPDATE players SET elo = 1500, wins = 0, losses = 0")
     conn.commit()
     count = conn.execute("SELECT COUNT(*) FROM players").fetchone()[0]
     conn.close()

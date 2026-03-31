@@ -5,7 +5,7 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 ## Features
 
 - **Queue-based matchmaking** — Players join a queue and are matched with the closest-rated opponent
-- **Elo rating system** — Chess-style Elo ratings (K-factor: 32, default rating: 1000)
+- **Elo rating system** — Chess-style Elo ratings (K-factor: 64 for first 10 games, then 32; default rating: 1500)
 - **Private match threads** — Each match gets its own private thread for isolated communication
 - **Reaction-based reporting** — Players react with the winner's icon (🍄 or ⭐) to report results
 - **Dispute handling** — Conflicting votes flag a dispute; admins can `/resolve` or `/admin_cancel`
@@ -38,7 +38,7 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 
 | Command | Description | Visibility |
 |---------|-------------|------------|
-| `/reset_season` | Reset all players' Elo to 1000 and clear win/loss records | Public |
+| `/reset_season` | Reset all players' Elo to 1500 and clear win/loss records | Public |
 | `/set_elo @player <elo>` | Set a player's Elo to a specific value | Public |
 | `/ban @player [reason]` | Ban a player from joining the matchmaking queue | Public |
 | `/unban @player` | Unban a player from matchmaking | Public |
@@ -149,7 +149,8 @@ sudo journalctl -u mario-tennis-bot -f    # View live logs
 
 ## Elo System
 
-- Starting Elo: **1000**
+- Starting Elo: **1500**
+- K-factor: **64** (first 10 games), **32** (after 10 games)
 - K-factor: **32**
 - Beating a higher-rated player gains more Elo; beating a lower-rated player gains less
 

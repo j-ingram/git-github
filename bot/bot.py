@@ -116,7 +116,9 @@ async def resolve_match(match: dict, winner_emoji: str, channel: discord.abc.Mes
     loser_player = get_player(loser_id)
 
     new_winner_elo, new_loser_elo = calculate_new_ratings(
-        winner_player["elo"], loser_player["elo"]
+        winner_player["elo"], loser_player["elo"],
+        winner_player["wins"] + winner_player["losses"],
+        loser_player["wins"] + loser_player["losses"],
     )
 
     if winner_id == match["player1_id"]:
@@ -590,7 +592,7 @@ async def cancel_match(interaction: discord.Interaction):
         )
 
 
-@tree.command(name="reset_season", description="[Admin] Reset all players' Elo to 1000 and clear win/loss records")
+@tree.command(name="reset_season", description="[Admin] Reset all players' Elo to 1500 and clear win/loss records")
 async def reset_season_cmd(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
@@ -598,7 +600,7 @@ async def reset_season_cmd(interaction: discord.Interaction):
 
     count = reset_season()
     await interaction.response.send_message(
-        f"Season has been reset! {count} player(s) reset to 1000 Elo with 0 wins/losses."
+        f"Season has been reset! {count} player(s) reset to 1500 Elo with 0 wins/losses."
     )
 
 
