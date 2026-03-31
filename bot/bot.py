@@ -32,7 +32,7 @@ from database import (
 from elo import calculate_new_ratings
 from matchmaking import (
     MatchmakingQueue, build_match_embed, pick_court, REACT_P1, REACT_P2,
-    ALL_COURTS, get_enabled_courts, set_enabled_courts,
+    ALL_COURTS, get_enabled_courts, set_enabled_courts, get_match_length,
 )
 
 load_dotenv()
@@ -223,6 +223,7 @@ async def try_create_match(channel: discord.TextChannel) -> bool:
     queue_channels.pop(p2["discord_id"], None)
 
     court = pick_court()
+    match_length = get_match_length()
     embed = build_match_embed(p1, p2, match_id, court)
 
     thread = await channel.create_thread(
@@ -240,7 +241,7 @@ async def try_create_match(channel: discord.TextChannel) -> bool:
         f"**How to play:**\n"
         f"1. One player creates a **private match** in Mario Tennis and shares the room code here\n"
         f"2. The other player joins using the room code\n"
-        f"3. Play with the settings shown above: **{court}** court, **High** ball speed, **Classic** mode, **Quick Play**\n"
+        f"3. Play with the settings shown above: **{court}** court, **High** ball speed, **Classic** mode, **{match_length}**\n"
         f"4. After the match, both players react above with the winner's icon ({REACT_P1} or {REACT_P2})\n\n"
         f"**No-show rule:** If your opponent does not respond in this thread within {get_vote_timeout() // 60} minute(s), "
         f"report yourself as the winner by reacting above. If they don't dispute within {get_vote_timeout() // 60} minute(s), "
@@ -711,6 +712,36 @@ async def set_match_expire_cmd(interaction: discord.Interaction, minutes: int):
     await interaction.response.send_message(
         f"Match auto-expire has been set to **{minutes} minutes**."
     )
+
+
+VALID_MATCH_LENGTHS = ["Quick Play", "Extended Play"]
+
+
+@tree.command(name="set_match_length", description="[Admin] Set the match length for new matches")
+@app_commands.describe(length="Match length: Quick Play or Extended Play")
+async def set_match_length_cmd(interaction: discord.Interaction, length: str):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    if length not in VALID_MATCH_LENGTHS:
+        await interaction.response.send_message(
+            f"Invalid match length. Choose **Quick Play** or **Extended Play**.", ephemeral=True
+        )
+        return
+
+    set_setting("match_length", length)
+    await interaction.response.send_message(
+        f"Match length has been set to **{length}**."
+    )
+
+
+@set_match_length_cmd.autocomplete("length")
+async def match_length_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+    return [
+        app_commands.Choice(name=length, value=length)
+        for length in VALID_MATCH_LENGTHS if current.lower() in length.lower()
+    ]
 
 
 @tree.command(name="enable_court", description="[Admin] Enable a court for the match rotation")
