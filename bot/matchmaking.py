@@ -29,10 +29,15 @@ ALL_CHARACTERS = (
 )
 
 DEFAULT_REMATCH_COOLDOWN = 60  # default seconds before same pair can be matched again
+DEFAULT_QUEUE_TIMEOUT = 60  # default minutes before idle player is removed from queue
 
 
 def get_rematch_cooldown() -> int:
     return int(get_setting("rematch_cooldown", str(DEFAULT_REMATCH_COOLDOWN)))
+
+
+def get_queue_timeout() -> int:
+    return int(get_setting("queue_timeout", str(DEFAULT_QUEUE_TIMEOUT)))
 
 
 def get_enabled_courts() -> list[str]:

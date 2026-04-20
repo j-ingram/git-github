@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 
 import discord
 from discord import app_commands
@@ -34,6 +35,7 @@ from matchmaking import (
     MatchmakingQueue, build_match_embed, pick_court, REACT_P1, REACT_P2,
     ALL_COURTS, get_enabled_courts, set_enabled_courts, get_match_length,
     ALL_CHARACTERS, get_banned_characters, set_banned_characters,
+    get_queue_timeout,
 )
 
 load_dotenv()
@@ -277,7 +279,24 @@ async def try_create_match(channel: discord.TextChannel) -> bool:
 
 @tasks.loop(seconds=10)
 async def check_queue_matches():
-    """Periodically check the queue for matches that became valid after cooldowns expired."""
+    """Periodically check the queue for matches and remove idle players."""
+    # Remove players who have been in the queue too long
+    timeout_seconds = get_queue_timeout() * 60
+    now = time.time()
+    for discord_id in list(queue.queue.keys()):
+        join_time = queue.join_times.get(discord_id, now)
+        if now - join_time >= timeout_seconds:
+            player = queue.queue.get(discord_id)
+            queue.remove_player(discord_id)
+            ch_id = queue_channels.pop(discord_id, None)
+            if player and ch_id:
+                channel = bot.get_channel(ch_id)
+                if channel:
+                    await channel.send(
+                        f"<@{discord_id}> you have been removed from the queue due to inactivity "
+                        f"({get_queue_timeout()} minute timeout). Use `/join` to re-enter."
+                    )
+
     if queue.queue_size() < 2:
         return
 
@@ -689,6 +708,23 @@ async def set_cooldown_cmd(interaction: discord.Interaction, seconds: int):
     set_setting("rematch_cooldown", str(seconds))
     await interaction.response.send_message(
         f"Rematch cooldown has been set to **{seconds} seconds**."
+    )
+
+
+@tree.command(name="set_queue_timeout", description="[Admin] Set how long a player can be in the queue before being removed for inactivity")
+@app_commands.describe(minutes="Queue timeout in minutes (e.g. 60)")
+async def set_queue_timeout_cmd(interaction: discord.Interaction, minutes: int):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    if minutes < 1:
+        await interaction.response.send_message("Queue timeout must be at least 1 minute.", ephemeral=True)
+        return
+
+    set_setting("queue_timeout", str(minutes))
+    await interaction.response.send_message(
+        f"Queue timeout has been set to **{minutes} minute(s)**. Idle players will be removed after this time."
     )
 
 
