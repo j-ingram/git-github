@@ -70,8 +70,8 @@ class MatchmakingQueue:
         self.last_opponents[p2_id] = p1_id
 
     def _is_on_cooldown(self, p1_id: str, p2_id: str) -> bool:
-        """Check if this pair were last opponents and haven't waited long enough in queue."""
-        if self.last_opponents.get(p1_id) != p2_id:
+        """Check if this pair were mutually last opponents and haven't waited long enough in queue."""
+        if self.last_opponents.get(p1_id) != p2_id or self.last_opponents.get(p2_id) != p1_id:
             return False
         # They were last opponents — check if the later joiner has waited 60s
         p1_join = self.join_times.get(p1_id, 0)
