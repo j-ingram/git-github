@@ -300,19 +300,31 @@ class DoublesQueue:
 
         # Case 3: Team vs 2 solos
         if len(self.teams) >= 1 and len(self.solos) >= 2:
-            best_match = None
-            best_diff = float('inf')
+            solo_list = list(self.solos.values())
+            pool_size = len(solo_list)
+            fresh_match = None
+            fresh_diff = float('inf')
+            fallback_match = None
+            fallback_diff = float('inf')
 
             for team_key, team in self.teams.items():
                 team_elo = team["team_elo"]
-                solo_list = list(self.solos.values())
                 for i in range(len(solo_list)):
                     for j in range(i + 1, len(solo_list)):
                         avg = (solo_list[i]["elo"] + solo_list[j]["elo"]) / 2
                         diff = abs(team_elo - avg)
-                        if diff < best_diff:
-                            best_diff = diff
-                            best_match = (team_key, team, (solo_list[i], solo_list[j]))
+                        recent = self._is_recent_teammate(
+                            solo_list[i]["discord_id"], solo_list[j]["discord_id"], pool_size
+                        )
+                        if not recent:
+                            if diff < fresh_diff:
+                                fresh_diff = diff
+                                fresh_match = (team_key, team, (solo_list[i], solo_list[j]))
+                        if diff < fallback_diff:
+                            fallback_diff = diff
+                            fallback_match = (team_key, team, (solo_list[i], solo_list[j]))
+
+            best_match = fresh_match or fallback_match
 
             if best_match:
                 team_key, team, solo_pair = best_match
