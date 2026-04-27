@@ -4,8 +4,10 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 
 ## Features
 
-- **Queue-based matchmaking** — Players join a queue and are matched with the closest-rated opponent
+- **Queue-based matchmaking** — Players join a singles or doubles queue and are matched by closest Elo
+- **Doubles matchmaking** — Pre-formed pairs or solo players can queue for 2v2 matches
 - **Elo rating system** — Chess-style Elo ratings (K-factor: 64 for first 10 games, then 32; default rating: 1500)
+- **Doubles Elo** — Separate individual doubles Elo and team Elo tracked per player pair
 - **Private match threads** — Each match gets its own private thread for isolated communication
 - **Reaction-based reporting** — Players react with the winner's icon (🍄 or ⭐) to report results
 - **Dispute handling** — Conflicting votes flag a dispute; admins can `/resolve` or `/admin_cancel`
@@ -26,12 +28,16 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 
 | Command | Description | Visibility |
 |---------|-------------|------------|
-| `/join` | Join the matchmaking queue | Public |
-| `/leave` | Leave the queue | Public |
-| `/queue` | See who is currently in the queue | Ephemeral |
-| `/cancel` | Cancel your pending match (both players must agree) | Public |
-| `/stats [player]` | View your or another player's stats | Ephemeral |
-| `/leaderboard` | View the top 10 players | Ephemeral |
+| `/join` | Join the singles matchmaking queue | Public |
+| `/join_doubles [@partner]` | Join the doubles queue (solo or with a partner invite) | Public |
+| `/leave` | Leave the queue or cancel a pending doubles invite | Public |
+| `/queue` | See who is currently in both queues | Ephemeral |
+| `/cancel` | Cancel your pending match (both players/teams must agree) | Public |
+| `/stats [player]` | View singles and doubles stats | Ephemeral |
+| `/stats_team @partner` | View your team rating with a specific partner | Ephemeral |
+| `/leaderboard` | View the top 10 singles players | Ephemeral |
+| `/leaderboard_doubles` | View the top 10 doubles players | Ephemeral |
+| `/leaderboard_teams` | View the top 10 teams | Ephemeral |
 | `/list_courts` | View all courts and their enabled/disabled status | Ephemeral |
 | `/banned_characters` | View all currently banned characters | Ephemeral |
 
@@ -54,6 +60,7 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 | `/disable_court <court>` | Disable a court from the match rotation (autocomplete dropdown) | Public |
 | `/ban_character <character>` | Ban a character from being used in matches (autocomplete dropdown) | Public |
 | `/unban_character <character>` | Unban a character (autocomplete dropdown) | Public |
+| `/set_invite_timeout <seconds>` | Set how long a doubles invite stays open (default: 600) | Public |
 
 `/resolve` and `/admin_cancel` auto-detect the match when used inside a match thread. When used from any other channel, provide the match ID.
 
@@ -153,10 +160,10 @@ sudo journalctl -u mario-tennis-bot -f    # View live logs
 
 ## Elo System
 
-- Starting Elo: **1500**
-- K-factor: **64** (first 10 games), **32** (after 10 games)
-- K-factor: **32**
+- Starting Elo: **1500** (singles, doubles individual, and team all start at 1500)
+- K-factor: **64** (first 10 games), **32** (after 10 games) — applies independently to singles, doubles individual, and team ratings
 - Beating a higher-rated player gains more Elo; beating a lower-rated player gains less
+- In doubles, individual Elo is calculated using each player's rating vs the opposing team's average Elo
 
 ## Database
 
