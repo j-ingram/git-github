@@ -152,6 +152,21 @@ class DoublesQueue:
         # Solo players: discord_id -> player dict (with doubles elo in 'elo' key)
         self.solos: dict[str, dict] = {}
         self.join_times: dict[str, float] = {}
+        # Recent solo teammates: discord_id -> list of partner ids (most recent last)
+        self.recent_teammates: dict[str, list[str]] = {}
+
+    def record_teammates(self, p1_id: str, p2_id: str):
+        self.recent_teammates.setdefault(p1_id, []).append(p2_id)
+        self.recent_teammates.setdefault(p2_id, []).append(p1_id)
+
+    def _is_recent_teammate(self, p1_id: str, p2_id: str, pool_size: int) -> bool:
+        # Each player can partner with (pool_size - 1) others.
+        # They should cycle through all of them before repeating.
+        max_history = pool_size - 2  # exclude self and current partner candidate
+        if max_history < 1:
+            return False
+        history = self.recent_teammates.get(p1_id, [])[-max_history:]
+        return p2_id in history
 
     def add_team(self, p1: dict, p2: dict, team_elo: int) -> frozenset:
         key = frozenset([p1["discord_id"], p2["discord_id"]])
@@ -237,11 +252,14 @@ class DoublesQueue:
                     self.join_times.pop(p["discord_id"], None)
                 return team1["players"], team2["players"]
 
-        # Case 2: 4+ solos → 2 balanced teams
+        # Case 2: 4+ solos → 2 balanced teams (with teammate rotation)
         if len(self.solos) >= 4:
             solo_list = sorted(self.solos.values(), key=lambda p: p["elo"])
-            best_match = None
-            best_diff = float('inf')
+            pool_size = len(solo_list)
+            fresh_match = None
+            fresh_diff = float('inf')
+            fallback_match = None
+            fallback_diff = float('inf')
 
             for group in combinations(solo_list, 4):
                 players = list(group)
@@ -254,16 +272,27 @@ class DoublesQueue:
                     t1_avg = (t1[0]["elo"] + t1[1]["elo"]) / 2
                     t2_avg = (t2[0]["elo"] + t2[1]["elo"]) / 2
                     diff = abs(t1_avg - t2_avg)
-                    if diff < best_diff:
-                        best_diff = diff
-                        best_match = (t1, t2)
 
+                    t1_recent = self._is_recent_teammate(t1[0]["discord_id"], t1[1]["discord_id"], pool_size)
+                    t2_recent = self._is_recent_teammate(t2[0]["discord_id"], t2[1]["discord_id"], pool_size)
+
+                    if not t1_recent and not t2_recent:
+                        if diff < fresh_diff:
+                            fresh_diff = diff
+                            fresh_match = (t1, t2)
+                    if diff < fallback_diff:
+                        fallback_diff = diff
+                        fallback_match = (t1, t2)
+
+            best_match = fresh_match or fallback_match
             if best_match:
                 t1, t2 = best_match
                 all_players = list(t1) + list(t2)
                 for p in all_players:
                     if get_pending_match(p["discord_id"]):
                         return None
+                self.record_teammates(t1[0]["discord_id"], t1[1]["discord_id"])
+                self.record_teammates(t2[0]["discord_id"], t2[1]["discord_id"])
                 for p in all_players:
                     self.solos.pop(p["discord_id"], None)
                     self.join_times.pop(p["discord_id"], None)
@@ -291,6 +320,7 @@ class DoublesQueue:
                 for p in all_players:
                     if get_pending_match(p["discord_id"]):
                         return None
+                self.record_teammates(solo_pair[0]["discord_id"], solo_pair[1]["discord_id"])
                 self.teams.pop(team_key)
                 for p in team["players"]:
                     self.join_times.pop(p["discord_id"], None)
