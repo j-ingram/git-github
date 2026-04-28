@@ -464,6 +464,27 @@ def reset_season():
     return count
 
 
+def reset_singles():
+    conn = get_connection()
+    conn.execute("UPDATE players SET elo = 1500, wins = 0, losses = 0")
+    conn.commit()
+    count = conn.execute("SELECT COUNT(*) FROM players").fetchone()[0]
+    conn.close()
+    return count
+
+
+def reset_doubles():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(DISTINCT discord_id) FROM player_ratings WHERE game_mode = 'doubles'")
+    count = cursor.fetchone()[0]
+    conn.execute("DELETE FROM player_ratings")
+    conn.execute("DELETE FROM teams")
+    conn.commit()
+    conn.close()
+    return count
+
+
 def set_player_elo(discord_id: str, elo: int) -> bool:
     conn = get_connection()
     cursor = conn.cursor()

@@ -31,6 +31,8 @@ from database import (
     get_match_by_thread,
     get_match_by_id,
     reset_season,
+    reset_singles,
+    reset_doubles,
     set_player_elo,
     ban_player,
     unban_player,
@@ -1025,6 +1027,30 @@ async def reset_season_cmd(interaction: discord.Interaction):
     count = reset_season()
     await interaction.response.send_message(
         f"Season has been reset! {count} player(s) reset to 1500 Elo with 0 wins/losses."
+    )
+
+
+@tree.command(name="reset_singles", description="[Admin] Reset all singles Elo to 1500 and clear win/loss records")
+async def reset_singles_cmd(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    count = reset_singles()
+    await interaction.response.send_message(
+        f"Singles season has been reset! {count} player(s) reset to 1500 Elo with 0 wins/losses."
+    )
+
+
+@tree.command(name="reset_doubles", description="[Admin] Reset all doubles and team Elo and clear records")
+async def reset_doubles_cmd(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    count = reset_doubles()
+    await interaction.response.send_message(
+        f"Doubles season has been reset! {count} player(s) and all team ratings reset. Everyone starts at 1500."
     )
 
 
