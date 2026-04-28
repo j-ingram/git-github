@@ -1740,13 +1740,13 @@ async def join_doubles(interaction: discord.Interaction, partner: discord.Member
     invite_embed = discord.Embed(
         title="Doubles Invite!",
         description=(
-            f"**{username}** wants to team up with **{partner.display_name}** for doubles!\n\n"
+            f"**{username}** wants to team up with <@{partner_id}> for doubles!\n\n"
             f"React {REACT_ACCEPT} to accept or {REACT_DECLINE} to decline.\n"
             f"This invite expires in {timeout_mins} minute(s)."
         ),
         color=discord.Color.blue(),
     )
-    await interaction.response.send_message(embed=invite_embed)
+    await interaction.response.send_message(content=f"<@{partner_id}>", embed=invite_embed)
     msg = await interaction.original_response()
     await msg.add_reaction(REACT_ACCEPT)
     await msg.add_reaction(REACT_DECLINE)
