@@ -45,7 +45,9 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 
 | Command | Description | Visibility |
 |---------|-------------|------------|
-| `/reset_season` | Reset all players' Elo to 1500 and clear win/loss records | Public |
+| `/reset_season` | Reset all players' Elo to 1500 and clear win/loss records (singles + doubles + teams) | Public |
+| `/reset_singles` | Reset only singles Elo to 1500 and clear singles win/loss records | Public |
+| `/reset_doubles` | Reset all doubles individual ratings and team ratings | Public |
 | `/set_elo @player <elo>` | Set a player's Elo to a specific value | Public |
 | `/ban @player [reason]` | Ban a player from joining the matchmaking queue | Public |
 | `/unban @player` | Unban a player from matchmaking | Public |
