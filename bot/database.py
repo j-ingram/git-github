@@ -495,6 +495,33 @@ def set_player_elo(discord_id: str, elo: int) -> bool:
     return updated
 
 
+def set_doubles_elo(discord_id: str, elo: int) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE player_ratings SET elo = ? WHERE discord_id = ? AND game_mode = 'doubles'",
+        (elo, discord_id),
+    )
+    conn.commit()
+    updated = cursor.rowcount > 0
+    conn.close()
+    return updated
+
+
+def set_team_elo(p1_id: str, p2_id: str, elo: int) -> bool:
+    p1, p2 = _sort_team_ids(p1_id, p2_id)
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE teams SET elo = ? WHERE player1_id = ? AND player2_id = ?",
+        (elo, p1, p2),
+    )
+    conn.commit()
+    updated = cursor.rowcount > 0
+    conn.close()
+    return updated
+
+
 def ban_player(discord_id: str, banned_by: str, reason: str | None = None) -> bool:
     conn = get_connection()
     try:

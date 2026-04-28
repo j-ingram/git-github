@@ -34,6 +34,8 @@ from database import (
     reset_singles,
     reset_doubles,
     set_player_elo,
+    set_doubles_elo,
+    set_team_elo,
     ban_player,
     unban_player,
     is_banned,
@@ -1054,7 +1056,7 @@ async def reset_doubles_cmd(interaction: discord.Interaction):
     )
 
 
-@tree.command(name="set_elo", description="[Admin] Set a player's Elo to a specific value")
+@tree.command(name="set_elo", description="[Admin] Set a player's singles Elo to a specific value")
 @app_commands.describe(player="The player to adjust", elo="The new Elo value")
 async def set_elo_cmd(interaction: discord.Interaction, player: discord.Member, elo: int):
     if not is_admin(interaction):
@@ -1066,10 +1068,47 @@ async def set_elo_cmd(interaction: discord.Interaction, player: discord.Member, 
 
     if set_player_elo(discord_id, elo):
         await interaction.response.send_message(
-            f"**{player.display_name}**'s Elo has been set to **{elo}**."
+            f"**{player.display_name}**'s singles Elo has been set to **{elo}**."
         )
     else:
         await interaction.response.send_message("Failed to update Elo.", ephemeral=True)
+
+
+@tree.command(name="set_doubles_elo", description="[Admin] Set a player's doubles Elo to a specific value")
+@app_commands.describe(player="The player to adjust", elo="The new doubles Elo value")
+async def set_doubles_elo_cmd(interaction: discord.Interaction, player: discord.Member, elo: int):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    discord_id = str(player.id)
+    get_or_create_doubles_rating(discord_id, player.display_name)
+
+    if set_doubles_elo(discord_id, elo):
+        await interaction.response.send_message(
+            f"**{player.display_name}**'s doubles Elo has been set to **{elo}**."
+        )
+    else:
+        await interaction.response.send_message("Failed to update doubles Elo.", ephemeral=True)
+
+
+@tree.command(name="set_team_elo", description="[Admin] Set a team's Elo to a specific value")
+@app_commands.describe(player1="First team member", player2="Second team member", elo="The new team Elo value")
+async def set_team_elo_cmd(interaction: discord.Interaction, player1: discord.Member, player2: discord.Member, elo: int):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    p1_id = str(player1.id)
+    p2_id = str(player2.id)
+    team = get_or_create_team(p1_id, p2_id)
+
+    if set_team_elo(p1_id, p2_id, elo):
+        await interaction.response.send_message(
+            f"**{player1.display_name} & {player2.display_name}** team Elo has been set to **{elo}**."
+        )
+    else:
+        await interaction.response.send_message("Failed to update team Elo.", ephemeral=True)
 
 
 @tree.command(name="ban", description="[Admin] Ban a player from matchmaking")
@@ -1082,11 +1121,36 @@ async def ban_cmd(interaction: discord.Interaction, player: discord.Member, reas
     discord_id = str(player.id)
 
     if ban_player(discord_id, str(interaction.user.id), reason):
-        # Remove from queue if they're in it
+        # Remove from singles queue
         if queue.remove_player(discord_id):
             queue_channels.pop(discord_id, None)
 
+        # Remove from doubles queue
+        partner_id = doubles_queue.remove_player(discord_id)
+        queue_channels.pop(discord_id, None)
+        if partner_id:
+            queue_channels.pop(partner_id, None)
+
+        # Cancel any pending doubles invite (as inviter)
+        invite = doubles_invites.pop(discord_id, None)
+        if invite:
+            invite_messages.pop(invite["message_id"], None)
+            timer = invite_timers.pop(discord_id, None)
+            if timer:
+                timer.cancel()
+
+        # Cancel any pending doubles invite (as target)
+        for inv_id in list(doubles_invites.keys()):
+            if doubles_invites[inv_id]["partner_id"] == discord_id:
+                inv = doubles_invites.pop(inv_id)
+                invite_messages.pop(inv["message_id"], None)
+                timer = invite_timers.pop(inv_id, None)
+                if timer:
+                    timer.cancel()
+
         msg = f"**{player.display_name}** has been banned from matchmaking."
+        if partner_id:
+            msg += f"\n<@{partner_id}> has been removed from the doubles queue because their partner was banned."
         if reason:
             msg += f"\nReason: {reason}"
         await interaction.response.send_message(msg)
