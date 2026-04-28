@@ -1556,7 +1556,7 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         queue_channels[user_id] = invite["channel_id"]
 
         await channel.send(
-            f"<@{user_id}> accepted! **{inviter['username']} & {partner['username']}** joined the doubles queue "
+            f"<@{inviter_id}> <@{user_id}> accepted! **{inviter['username']} & {partner['username']}** joined the doubles queue "
             f"(Team Elo: {team['elo']}). Players in doubles queue: {doubles_queue.queue_size()}"
         )
         await try_create_doubles_match(channel)
