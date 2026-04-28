@@ -1715,6 +1715,14 @@ async def join_doubles(interaction: discord.Interaction, partner: discord.Member
         )
         return
 
+    for inv in doubles_invites.values():
+        if inv["partner_id"] == discord_id:
+            await interaction.response.send_message(
+                "You have a pending doubles invite to respond to. Accept, decline, or use `/leave` to dismiss it.",
+                ephemeral=True,
+            )
+            return
+
     pending = get_pending_match(discord_id)
     if pending:
         await interaction.response.send_message(
@@ -1754,6 +1762,19 @@ async def join_doubles(interaction: discord.Interaction, partner: discord.Member
             f"**{partner.display_name}** is already in a queue.", ephemeral=True
         )
         return
+
+    if partner_id in doubles_invites:
+        await interaction.response.send_message(
+            f"**{partner.display_name}** already has a pending invite out.", ephemeral=True
+        )
+        return
+
+    for inv in doubles_invites.values():
+        if inv["partner_id"] == partner_id:
+            await interaction.response.send_message(
+                f"**{partner.display_name}** already has a pending invite to respond to.", ephemeral=True
+            )
+            return
 
     pending_p = get_pending_match(partner_id)
     if pending_p:
