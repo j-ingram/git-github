@@ -1677,21 +1677,23 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
                         f"or contact the moderator team for assistance."
                     )
             else:
-                if voter_team == 1:
-                    other_mention = f"<@{match['player3_id']}> <@{match['player4_id']}>"
-                else:
-                    other_mention = f"<@{match['player1_id']}> <@{match['player2_id']}>"
-                await channel.send(
-                    f"{other_mention}, the opposing team has submitted their result. "
-                    f"You have **{get_vote_timeout() // 60} minute(s)** to react or their result will be accepted."
-                )
-                old_timer = vote_timers.pop(payload.message_id, None)
-                if old_timer:
-                    old_timer.cancel()
-                task = asyncio.create_task(
-                    doubles_vote_timeout(payload.message_id, payload.channel_id, str(match["id"]))
-                )
-                vote_timers[payload.message_id] = task
+                my_team_votes = team1_votes if voter_team == 1 else team2_votes
+                if len(my_team_votes) == 1:
+                    if voter_team == 1:
+                        other_mention = f"<@{match['player3_id']}> <@{match['player4_id']}>"
+                    else:
+                        other_mention = f"<@{match['player1_id']}> <@{match['player2_id']}>"
+                    await channel.send(
+                        f"{other_mention}, the opposing team has submitted their result. "
+                        f"You have **{get_vote_timeout() // 60} minute(s)** to react or their result will be accepted."
+                    )
+                    old_timer = vote_timers.pop(payload.message_id, None)
+                    if old_timer:
+                        old_timer.cancel()
+                    task = asyncio.create_task(
+                        doubles_vote_timeout(payload.message_id, payload.channel_id, str(match["id"]))
+                    )
+                    vote_timers[payload.message_id] = task
             return
 
         # --- Singles voting ---
