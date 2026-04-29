@@ -92,6 +92,8 @@ doubles_queue = DoublesQueue()
 
 # Track votes per match message: {message_id: {discord_id: emoji}}
 match_votes: dict[int, dict[str, str]] = {}
+# Lock to prevent concurrent vote processing from resolving the same match twice
+vote_lock = asyncio.Lock()
 
 # Track cancel requests per match: {match_id: set of discord_ids who requested cancel}
 cancel_requests: dict[int, set[str]] = {}
@@ -1630,96 +1632,97 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     if emoji not in (REACT_P1, REACT_P2):
         return
 
-    match = get_match_by_message(str(payload.message_id))
-    if not match:
-        return
-
-    if payload.message_id not in match_votes:
-        match_votes[payload.message_id] = {}
-    votes = match_votes[payload.message_id]
-
-    channel = bot.get_channel(payload.channel_id)
-    if channel is None:
-        channel = await bot.fetch_channel(payload.channel_id)
-    message = await channel.fetch_message(payload.message_id)
-
-    for reaction_emoji in (REACT_P1, REACT_P2):
-        if reaction_emoji != emoji:
-            await message.remove_reaction(reaction_emoji, discord.Object(id=payload.user_id))
-
-    votes[user_id] = emoji
-
-    # --- Doubles voting ---
-    if match.get("game_mode") == "doubles":
-        voter_team = get_player_team(match, user_id)
-        if voter_team is None:
+    async with vote_lock:
+        match = get_match_by_message(str(payload.message_id))
+        if not match or match["winner_id"] is not None:
             return
 
-        team1_votes = {did: v for did, v in votes.items() if get_player_team(match, did) == 1}
-        team2_votes = {did: v for did, v in votes.items() if get_player_team(match, did) == 2}
+        if payload.message_id not in match_votes:
+            match_votes[payload.message_id] = {}
+        votes = match_votes[payload.message_id]
 
-        if team1_votes and team2_votes:
+        channel = bot.get_channel(payload.channel_id)
+        if channel is None:
+            channel = await bot.fetch_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id)
+
+        for reaction_emoji in (REACT_P1, REACT_P2):
+            if reaction_emoji != emoji:
+                await message.remove_reaction(reaction_emoji, discord.Object(id=payload.user_id))
+
+        votes[user_id] = emoji
+
+        # --- Doubles voting ---
+        if match.get("game_mode") == "doubles":
+            voter_team = get_player_team(match, user_id)
+            if voter_team is None:
+                return
+
+            team1_votes = {did: v for did, v in votes.items() if get_player_team(match, did) == 1}
+            team2_votes = {did: v for did, v in votes.items() if get_player_team(match, did) == 2}
+
+            if team1_votes and team2_votes:
+                timer = vote_timers.pop(payload.message_id, None)
+                if timer:
+                    timer.cancel()
+                t1_vote = next(iter(team1_votes.values()))
+                t2_vote = next(iter(team2_votes.values()))
+                if t1_vote == t2_vote:
+                    winning_team = 1 if t1_vote == REACT_P1 else 2
+                    await resolve_doubles_match(match, winning_team, channel, payload.message_id)
+                else:
+                    await channel.send(
+                        f"**Doubles Match #{match['id']} is disputed!** Teams voted for different winners.\n"
+                        f"Change your reaction to agree, use `/cancel` to void the match, "
+                        f"or contact the moderator team for assistance."
+                    )
+            else:
+                if voter_team == 1:
+                    other_mention = f"<@{match['player3_id']}> <@{match['player4_id']}>"
+                else:
+                    other_mention = f"<@{match['player1_id']}> <@{match['player2_id']}>"
+                await channel.send(
+                    f"{other_mention}, the opposing team has submitted their result. "
+                    f"You have **{get_vote_timeout() // 60} minute(s)** to react or their result will be accepted."
+                )
+                old_timer = vote_timers.pop(payload.message_id, None)
+                if old_timer:
+                    old_timer.cancel()
+                task = asyncio.create_task(
+                    doubles_vote_timeout(payload.message_id, payload.channel_id, str(match["id"]))
+                )
+                vote_timers[payload.message_id] = task
+            return
+
+        # --- Singles voting ---
+        if user_id not in (match["player1_id"], match["player2_id"]):
+            return
+
+        other_id = match["player2_id"] if user_id == match["player1_id"] else match["player1_id"]
+
+        if other_id in votes:
             timer = vote_timers.pop(payload.message_id, None)
             if timer:
                 timer.cancel()
-            t1_vote = next(iter(team1_votes.values()))
-            t2_vote = next(iter(team2_votes.values()))
-            if t1_vote == t2_vote:
-                winning_team = 1 if t1_vote == REACT_P1 else 2
-                await resolve_doubles_match(match, winning_team, channel, payload.message_id)
+            if votes[user_id] == votes[other_id]:
+                await resolve_match(match, emoji, channel, payload.message_id)
             else:
                 await channel.send(
-                    f"**Doubles Match #{match['id']} is disputed!** Teams voted for different winners.\n"
+                    f"**Match #{match['id']} is disputed!** "
+                    f"<@{match['player1_id']}> and <@{match['player2_id']}> selected different winners.\n"
                     f"Change your reaction to agree, use `/cancel` to void the match, "
                     f"or contact the moderator team for assistance."
                 )
         else:
-            if voter_team == 1:
-                other_mention = f"<@{match['player3_id']}> <@{match['player4_id']}>"
-            else:
-                other_mention = f"<@{match['player1_id']}> <@{match['player2_id']}>"
             await channel.send(
-                f"{other_mention}, the opposing team has submitted their result. "
-                f"You have **{get_vote_timeout() // 60} minute(s)** to react or their result will be accepted."
+                f"<@{other_id}>, your opponent has submitted their result. "
+                f"You have **{get_vote_timeout() // 60} minute(s)** to react with the winner's icon or their result will be accepted."
             )
             old_timer = vote_timers.pop(payload.message_id, None)
             if old_timer:
                 old_timer.cancel()
             task = asyncio.create_task(
-                doubles_vote_timeout(payload.message_id, payload.channel_id, str(match["id"]))
-            )
-            vote_timers[payload.message_id] = task
-        return
-
-    # --- Singles voting ---
-    if user_id not in (match["player1_id"], match["player2_id"]):
-        return
-
-    other_id = match["player2_id"] if user_id == match["player1_id"] else match["player1_id"]
-
-    if other_id in votes:
-        timer = vote_timers.pop(payload.message_id, None)
-        if timer:
-            timer.cancel()
-        if votes[user_id] == votes[other_id]:
-            await resolve_match(match, emoji, channel, payload.message_id)
-        else:
-            await channel.send(
-                f"**Match #{match['id']} is disputed!** "
-                f"<@{match['player1_id']}> and <@{match['player2_id']}> selected different winners.\n"
-                f"Change your reaction to agree, use `/cancel` to void the match, "
-                f"or contact the moderator team for assistance."
-            )
-    else:
-        await channel.send(
-            f"<@{other_id}>, your opponent has submitted their result. "
-            f"You have **{get_vote_timeout() // 60} minute(s)** to react with the winner's icon or their result will be accepted."
-        )
-        old_timer = vote_timers.pop(payload.message_id, None)
-        if old_timer:
-            old_timer.cancel()
-        task = asyncio.create_task(
-            vote_timeout(payload.message_id, payload.channel_id, str(match["id"]), user_id, other_id, emoji)
+                vote_timeout(payload.message_id, payload.channel_id, str(match["id"]), user_id, other_id, emoji)
         )
         vote_timers[payload.message_id] = task
 
