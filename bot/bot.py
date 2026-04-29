@@ -752,7 +752,7 @@ async def join_queue(interaction: discord.Interaction):
     await interaction.response.send_message(
         f"**{username}** joined the queue! (Elo: {player['elo']}) "
         f"Players in queue: {queue.queue_size()}\n"
-        f"Type `/join` to play!"
+        f"Looking for an opponent? Type `/join` to play!"
     )
 
     # Try to find a match immediately
@@ -1808,7 +1808,7 @@ async def join_doubles(interaction: discord.Interaction, partner: discord.Member
         await interaction.response.send_message(
             f"**{username}** joined the doubles queue solo! (Doubles Elo: {rating['elo']}) "
             f"Players in doubles queue: {doubles_queue.queue_size()}\n"
-            f"Type `/join_doubles` to play!"
+            f"Looking for teammates? Type `/join_doubles` to play!"
         )
         await try_create_doubles_match(interaction.channel)
         return
