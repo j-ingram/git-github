@@ -53,6 +53,7 @@ from matchmaking import (
     pick_court, REACT_P1, REACT_P2, REACT_ACCEPT, REACT_DECLINE,
     ALL_COURTS, get_enabled_courts, set_enabled_courts, get_match_length, get_doubles_match_length,
     ALL_CHARACTERS, get_banned_characters, set_banned_characters,
+    get_doubles_banned_characters, set_doubles_banned_characters,
     get_queue_timeout, get_invite_timeout,
 )
 
@@ -496,12 +497,12 @@ async def try_create_doubles_match(channel: discord.TextChannel) -> bool:
     await match_msg.add_reaction(REACT_P1)
     await match_msg.add_reaction(REACT_P2)
 
-    banned = get_banned_characters()
+    doubles_banned = get_doubles_banned_characters()
     banned_text = ""
-    if banned:
+    if doubles_banned:
         banned_text = (
             f"\n\n**Banned characters:** The following characters are **banned** and may not be used: "
-            f"**{', '.join(banned)}**. Using a banned character may result in a forfeit."
+            f"**{', '.join(doubles_banned)}**. Using a banned character may result in a forfeit."
         )
 
     await thread.send(
@@ -1448,6 +1449,83 @@ async def banned_characters_cmd(interaction: discord.Interaction):
         color=discord.Color.red(),
     )
     embed.set_footer(text=f"{len(banned)} character(s) banned")
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+@tree.command(name="ban_doubles_character", description="[Admin] Ban a character from doubles matches")
+@app_commands.describe(character="The character to ban from doubles")
+async def ban_doubles_character_cmd(interaction: discord.Interaction, character: str):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    banned = get_doubles_banned_characters()
+    if character in banned:
+        await interaction.response.send_message(f"**{character}** is already banned in doubles.", ephemeral=True)
+        return
+
+    banned.append(character)
+    set_doubles_banned_characters(banned)
+    await interaction.response.send_message(f"**{character}** has been banned in doubles. ({len(banned)} character(s) banned)")
+
+
+@ban_doubles_character_cmd.autocomplete("character")
+async def ban_doubles_character_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+    banned = get_doubles_banned_characters()
+    available = [c for c in ALL_CHARACTERS if c not in banned]
+    return [
+        app_commands.Choice(name=c, value=c)
+        for c in available if current.lower() in c.lower()
+    ][:25]
+
+
+@tree.command(name="unban_doubles_character", description="[Admin] Unban a character from doubles matches")
+@app_commands.describe(character="The character to unban from doubles")
+async def unban_doubles_character_cmd(interaction: discord.Interaction, character: str):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    banned = get_doubles_banned_characters()
+    if character not in banned:
+        await interaction.response.send_message(f"**{character}** is not currently banned in doubles.", ephemeral=True)
+        return
+
+    banned.remove(character)
+    set_doubles_banned_characters(banned)
+    if banned:
+        await interaction.response.send_message(f"**{character}** has been unbanned in doubles. ({len(banned)} character(s) still banned)")
+    else:
+        await interaction.response.send_message(f"**{character}** has been unbanned in doubles. No characters are banned in doubles.")
+
+
+@unban_doubles_character_cmd.autocomplete("character")
+async def unban_doubles_character_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+    banned = get_doubles_banned_characters()
+    return [
+        app_commands.Choice(name=c, value=c)
+        for c in banned if current.lower() in c.lower()
+    ][:25]
+
+
+@tree.command(name="banned_doubles_characters", description="View all characters banned in doubles")
+async def banned_doubles_characters_cmd(interaction: discord.Interaction):
+    if not is_matchmaking_channel(interaction):
+        await interaction.response.send_message(WRONG_CHANNEL_MSG, ephemeral=True)
+        return
+
+    banned = get_doubles_banned_characters()
+    if not banned:
+        await interaction.response.send_message("No characters are currently banned in doubles.", ephemeral=True)
+        return
+
+    description = "\n".join(f"🚫 {c}" for c in banned)
+    embed = discord.Embed(
+        title="Banned Doubles Characters",
+        description=description,
+        color=discord.Color.red(),
+    )
+    embed.set_footer(text=f"{len(banned)} character(s) banned in doubles")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 

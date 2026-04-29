@@ -71,6 +71,17 @@ def set_banned_characters(characters: list[str]):
     set_setting("banned_characters", ",".join(characters))
 
 
+def get_doubles_banned_characters() -> list[str]:
+    banned_str = get_setting("doubles_banned_characters", "")
+    if not banned_str:
+        return []
+    return [c.strip() for c in banned_str.split(",") if c.strip()]
+
+
+def set_doubles_banned_characters(characters: list[str]):
+    set_setting("doubles_banned_characters", ",".join(characters))
+
+
 class MatchmakingQueue:
     def __init__(self):
         self.queue: dict[str, dict] = {}
@@ -412,7 +423,7 @@ def build_doubles_match_embed(team1: tuple, team2: tuple, match_id: int, court: 
         inline=True,
     )
     settings_text = f"**Court:** {court}\n**Ball Speed:** High\n**Mode:** Classic\n**Match Length:** {get_doubles_match_length()}"
-    banned = get_banned_characters()
+    banned = get_doubles_banned_characters()
     if banned:
         settings_text += f"\n**Banned Characters:** {', '.join(banned)}"
     embed.add_field(

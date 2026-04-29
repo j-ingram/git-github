@@ -39,7 +39,8 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 | `/leaderboard_doubles` | View the top 10 doubles players | Ephemeral |
 | `/leaderboard_teams` | View the top 10 teams | Ephemeral |
 | `/list_courts` | View all courts and their enabled/disabled status | Ephemeral |
-| `/banned_characters` | View all currently banned characters | Ephemeral |
+| `/banned_characters` | View all currently banned singles characters | Ephemeral |
+| `/banned_doubles_characters` | View all currently banned doubles characters | Ephemeral |
 
 ### Admin Commands
 
@@ -63,8 +64,10 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 | `/set_doubles_match_length <length>` | Set the doubles match length: Quick Play, Extended Play, Custom - 4 Games, or Custom - 6 Games (default: Custom - 4 Games) | Public |
 | `/enable_court <court>` | Enable a court for the match rotation (autocomplete dropdown) | Public |
 | `/disable_court <court>` | Disable a court from the match rotation (autocomplete dropdown) | Public |
-| `/ban_character <character>` | Ban a character from being used in matches (autocomplete dropdown) | Public |
-| `/unban_character <character>` | Unban a character (autocomplete dropdown) | Public |
+| `/ban_character <character>` | Ban a character from singles matches (autocomplete dropdown) | Public |
+| `/unban_character <character>` | Unban a character from singles (autocomplete dropdown) | Public |
+| `/ban_doubles_character <character>` | Ban a character from doubles matches (autocomplete dropdown) | Public |
+| `/unban_doubles_character <character>` | Unban a character from doubles (autocomplete dropdown) | Public |
 | `/set_invite_timeout <seconds>` | Set how long a doubles invite stays open (default: 600) | Public |
 
 `/resolve` and `/admin_cancel` auto-detect the match when used inside a match thread. When used from any other channel, provide the match ID.
