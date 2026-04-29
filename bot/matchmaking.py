@@ -353,6 +353,10 @@ def get_match_length() -> str:
     return get_setting("match_length", "Quick Play")
 
 
+def get_doubles_match_length() -> str:
+    return get_setting("doubles_match_length", "Custom - 4 Games")
+
+
 def build_match_embed(p1: dict, p2: dict, match_id: int, court: str) -> discord.Embed:
     embed = discord.Embed(
         title="Match Found!",
@@ -407,7 +411,7 @@ def build_doubles_match_embed(team1: tuple, team2: tuple, match_id: int, court: 
         value=f"{p3['username']} ({t2_p1_elo})\n{p4['username']} ({t2_p2_elo})",
         inline=True,
     )
-    settings_text = f"**Court:** {court}\n**Ball Speed:** High\n**Mode:** Classic\n**Match Length:** {get_match_length()}"
+    settings_text = f"**Court:** {court}\n**Ball Speed:** High\n**Mode:** Classic\n**Match Length:** {get_doubles_match_length()}"
     banned = get_banned_characters()
     if banned:
         settings_text += f"\n**Banned Characters:** {', '.join(banned)}"

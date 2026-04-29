@@ -51,7 +51,7 @@ from matchmaking import (
     MatchmakingQueue, DoublesQueue,
     build_match_embed, build_doubles_match_embed,
     pick_court, REACT_P1, REACT_P2, REACT_ACCEPT, REACT_DECLINE,
-    ALL_COURTS, get_enabled_courts, set_enabled_courts, get_match_length,
+    ALL_COURTS, get_enabled_courts, set_enabled_courts, get_match_length, get_doubles_match_length,
     ALL_CHARACTERS, get_banned_characters, set_banned_characters,
     get_queue_timeout, get_invite_timeout,
 )
@@ -475,7 +475,7 @@ async def try_create_doubles_match(channel: discord.TextChannel) -> bool:
     )
 
     court = pick_court()
-    match_length = get_match_length()
+    match_length = get_doubles_match_length()
     embed = build_doubles_match_embed(
         team1, team2, match_id, court,
         p1_r["elo"], p2_r["elo"], p3_r["elo"], p4_r["elo"],
@@ -1251,6 +1251,7 @@ async def set_match_expire_cmd(interaction: discord.Interaction, minutes: int):
 
 
 VALID_MATCH_LENGTHS = ["Quick Play", "Extended Play"]
+VALID_DOUBLES_MATCH_LENGTHS = ["Quick Play", "Extended Play", "Custom - 4 Games", "Custom - 6 Games"]
 
 
 @tree.command(name="set_match_length", description="[Admin] Set the match length for new matches")
@@ -1277,6 +1278,34 @@ async def match_length_autocomplete(interaction: discord.Interaction, current: s
     return [
         app_commands.Choice(name=length, value=length)
         for length in VALID_MATCH_LENGTHS if current.lower() in length.lower()
+    ]
+
+
+@tree.command(name="set_doubles_match_length", description="[Admin] Set the match length for new doubles matches")
+@app_commands.describe(length="Doubles match length")
+async def set_doubles_match_length_cmd(interaction: discord.Interaction, length: str):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    if length not in VALID_DOUBLES_MATCH_LENGTHS:
+        await interaction.response.send_message(
+            f"Invalid match length. Choose from: {', '.join(f'**{l}**' for l in VALID_DOUBLES_MATCH_LENGTHS)}.",
+            ephemeral=True,
+        )
+        return
+
+    set_setting("doubles_match_length", length)
+    await interaction.response.send_message(
+        f"Doubles match length has been set to **{length}**."
+    )
+
+
+@set_doubles_match_length_cmd.autocomplete("length")
+async def doubles_match_length_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+    return [
+        app_commands.Choice(name=length, value=length)
+        for length in VALID_DOUBLES_MATCH_LENGTHS if current.lower() in length.lower()
     ]
 
 

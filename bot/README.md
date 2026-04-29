@@ -59,7 +59,8 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 | `/set_queue_timeout <minutes>` | Set how long a player can idle in the queue before being auto-removed (default: 60) | Public |
 | `/set_vote_timeout <seconds>` | Set the no-show vote timeout in seconds (default: 300) | Public |
 | `/set_match_expire <minutes>` | Set the match auto-expire duration in minutes (default: 30) | Public |
-| `/set_match_length <length>` | Set the match length: Quick Play or Extended Play (default: Quick Play) | Public |
+| `/set_match_length <length>` | Set the singles match length: Quick Play or Extended Play (default: Quick Play) | Public |
+| `/set_doubles_match_length <length>` | Set the doubles match length: Quick Play, Extended Play, Custom - 4 Games, or Custom - 6 Games (default: Custom - 4 Games) | Public |
 | `/enable_court <court>` | Enable a court for the match rotation (autocomplete dropdown) | Public |
 | `/disable_court <court>` | Disable a court from the match rotation (autocomplete dropdown) | Public |
 | `/ban_character <character>` | Ban a character from being used in matches (autocomplete dropdown) | Public |
