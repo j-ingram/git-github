@@ -1808,7 +1808,7 @@ async def join_doubles(interaction: discord.Interaction, partner: discord.Member
         await interaction.response.send_message(
             f"**{username}** joined the doubles queue solo! (Doubles Elo: {rating['elo']}) "
             f"Players in doubles queue: {doubles_queue.queue_size()}\n"
-            f"Looking for teammates? Type `/join_doubles` to play!"
+            f"Want to play doubles? Type `/join_doubles` to play!"
         )
         await try_create_doubles_match(interaction.channel)
         return
