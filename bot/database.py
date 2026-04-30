@@ -318,7 +318,7 @@ def get_leaderboard(limit: int = 10) -> list[dict]:
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT * FROM players ORDER BY elo DESC LIMIT ?", (limit,)
+        "SELECT * FROM players WHERE (wins + losses) > 0 ORDER BY elo DESC LIMIT ?", (limit,)
     )
     rows = cursor.fetchall()
     conn.close()
@@ -331,7 +331,7 @@ def get_doubles_leaderboard(limit: int = 10) -> list[dict]:
     cursor.execute(
         """SELECT pr.*, p.username FROM player_ratings pr
            JOIN players p ON pr.discord_id = p.discord_id
-           WHERE pr.game_mode = 'doubles'
+           WHERE pr.game_mode = 'doubles' AND (pr.wins + pr.losses) > 0
            ORDER BY pr.elo DESC LIMIT ?""",
         (limit,),
     )
@@ -348,6 +348,7 @@ def get_team_leaderboard(limit: int = 10) -> list[dict]:
            FROM teams t
            JOIN players p1 ON t.player1_id = p1.discord_id
            JOIN players p2 ON t.player2_id = p2.discord_id
+           WHERE (t.wins + t.losses) > 0
            ORDER BY t.elo DESC LIMIT ?""",
         (limit,),
     )
@@ -376,10 +377,12 @@ def get_player_teams(discord_id: str, limit: int = 5) -> list[dict]:
 def get_player_rank(discord_id: str) -> tuple[int, int] | None:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM players")
+    cursor.execute("SELECT COUNT(*) FROM players WHERE (wins + losses) > 0")
     total = cursor.fetchone()[0]
     cursor.execute(
-        "SELECT COUNT(*) FROM players AS p2 WHERE p2.elo > (SELECT elo FROM players WHERE discord_id = ?)",
+        """SELECT COUNT(*) FROM players
+           WHERE (wins + losses) > 0
+           AND elo > (SELECT elo FROM players WHERE discord_id = ?)""",
         (discord_id,),
     )
     above = cursor.fetchone()[0]
@@ -390,14 +393,14 @@ def get_player_rank(discord_id: str) -> tuple[int, int] | None:
 def get_doubles_player_rank(discord_id: str) -> tuple[int, int] | None:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM player_ratings WHERE game_mode = 'doubles'")
+    cursor.execute("SELECT COUNT(*) FROM player_ratings WHERE game_mode = 'doubles' AND (wins + losses) > 0")
     total = cursor.fetchone()[0]
     if total == 0:
         conn.close()
         return None
     cursor.execute(
         """SELECT COUNT(*) FROM player_ratings
-           WHERE game_mode = 'doubles' AND elo > (
+           WHERE game_mode = 'doubles' AND (wins + losses) > 0 AND elo > (
                SELECT elo FROM player_ratings WHERE discord_id = ? AND game_mode = 'doubles'
            )""",
         (discord_id,),
@@ -413,13 +416,13 @@ def get_team_rank(p1_id: str, p2_id: str) -> tuple[int, int] | None:
     p1, p2 = _sort_team_ids(p1_id, p2_id)
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM teams")
+    cursor.execute("SELECT COUNT(*) FROM teams WHERE (wins + losses) > 0")
     total = cursor.fetchone()[0]
     if total == 0:
         conn.close()
         return None
     cursor.execute(
-        """SELECT COUNT(*) FROM teams WHERE elo > (
+        """SELECT COUNT(*) FROM teams WHERE (wins + losses) > 0 AND elo > (
                SELECT elo FROM teams WHERE player1_id = ? AND player2_id = ?
            )""",
         (p1, p2),
