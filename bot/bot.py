@@ -791,8 +791,8 @@ async def leave_queue(interaction: discord.Interaction):
         return
 
     # Leave doubles queue
-    partner_id = doubles_queue.remove_player(discord_id)
-    if partner_id is not None or doubles_queue.solos.get(discord_id) is None:
+    if doubles_queue.is_in_queue(discord_id):
+        partner_id = doubles_queue.remove_player(discord_id)
         queue_channels.pop(discord_id, None)
         msg = f"**{interaction.user.display_name}** left the doubles queue."
         if partner_id:
