@@ -859,8 +859,8 @@ async def stats(
     rank, total_players = get_player_rank(discord_id)
 
     embed = discord.Embed(title=f"{p['username']}'s Stats", color=discord.Color.purple())
-    embed.add_field(name="Singles Rank", value=f"#{rank} of {total_players}", inline=True)
-    embed.add_field(name="Singles Elo", value=str(p["elo"]), inline=True)
+    embed.add_field(name="Singles Rank", value=f"#{rank} of {total_players}", inline=False)
+    embed.add_field(name="Singles Elo", value=str(p["elo"]), inline=False)
     embed.add_field(name="Wins", value=str(p["wins"]), inline=True)
     embed.add_field(name="Losses", value=str(p["losses"]), inline=True)
     embed.add_field(name="Win Rate", value=win_rate, inline=True)
@@ -871,8 +871,8 @@ async def stats(
         d_wr = f"{d_rating['wins'] / d_total * 100:.1f}%" if d_total > 0 else "N/A"
         d_rank = get_doubles_player_rank(discord_id)
         d_rank_str = f"#{d_rank[0]} of {d_rank[1]}" if d_rank else "N/A"
-        embed.add_field(name="Doubles Rank", value=d_rank_str, inline=True)
-        embed.add_field(name="Doubles Elo", value=str(d_rating["elo"]), inline=True)
+        embed.add_field(name="Doubles Rank", value=d_rank_str, inline=False)
+        embed.add_field(name="Doubles Elo", value=str(d_rating["elo"]), inline=False)
         embed.add_field(name="Doubles Wins", value=str(d_rating["wins"]), inline=True)
         embed.add_field(name="Doubles Losses", value=str(d_rating["losses"]), inline=True)
         embed.add_field(name="Doubles Win Rate", value=d_wr, inline=True)
