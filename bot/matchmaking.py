@@ -1,8 +1,11 @@
+import logging
 import random
 import time
 from itertools import combinations
 
 import discord
+
+log = logging.getLogger(__name__)
 
 from database import (
     get_or_create_player, create_match, get_pending_match, get_setting, set_setting,
@@ -297,6 +300,15 @@ class DoublesQueue:
             best_match = fresh_match or fallback_match
             if best_match:
                 t1, t2 = best_match
+                used_fallback = fresh_match is None
+                log.info(
+                    "Doubles match (Case 2): %s+%s vs %s+%s | pool=%d max_hist=%d fallback=%s | history: %s",
+                    t1[0]["username"], t1[1]["username"],
+                    t2[0]["username"], t2[1]["username"],
+                    pool_size, pool_size - 2, used_fallback,
+                    {p["username"]: self.recent_teammates.get(p["discord_id"], [])
+                     for p in list(t1) + list(t2)},
+                )
                 all_players = list(t1) + list(t2)
                 for p in all_players:
                     if get_pending_match(p["discord_id"]):
