@@ -171,13 +171,12 @@ class DoublesQueue:
         self.recent_teammates.setdefault(p2_id, []).append(p1_id)
 
     def _is_recent_teammate(self, p1_id: str, p2_id: str, pool_size: int) -> bool:
-        # Each player can partner with (pool_size - 1) others.
-        # They should cycle through all of them before repeating.
-        max_history = pool_size - 2  # exclude self and current partner candidate
+        max_history = pool_size - 2
         if max_history < 1:
             return False
-        history = self.recent_teammates.get(p1_id, [])[-max_history:]
-        return p2_id in history
+        p1_history = self.recent_teammates.get(p1_id, [])[-max_history:]
+        p2_history = self.recent_teammates.get(p2_id, [])[-max_history:]
+        return p2_id in p1_history or p1_id in p2_history
 
     def add_team(self, p1: dict, p2: dict, team_elo: int) -> frozenset:
         key = frozenset([p1["discord_id"], p2["discord_id"]])
