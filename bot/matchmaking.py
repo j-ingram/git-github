@@ -1,8 +1,6 @@
 import logging
 import random
 import time
-from itertools import combinations
-
 import discord
 
 log = logging.getLogger(__name__)
@@ -267,35 +265,34 @@ class DoublesQueue:
 
         # Case 2: 4+ solos → 2 balanced teams (with teammate rotation)
         if len(self.solos) >= 4:
-            solo_list = sorted(self.solos.values(), key=lambda p: p["elo"])
+            solo_list = sorted(self.solos.values(), key=lambda p: self.join_times.get(p["discord_id"], 0))
+            players = solo_list[:4]
             pool_size = len(solo_list)
             fresh_match = None
             fresh_diff = float('inf')
             fallback_match = None
             fallback_diff = float('inf')
 
-            for group in combinations(solo_list, 4):
-                players = list(group)
-                splits = [
-                    ((players[0], players[1]), (players[2], players[3])),
-                    ((players[0], players[2]), (players[1], players[3])),
-                    ((players[0], players[3]), (players[1], players[2])),
-                ]
-                for t1, t2 in splits:
-                    t1_avg = (t1[0]["elo"] + t1[1]["elo"]) / 2
-                    t2_avg = (t2[0]["elo"] + t2[1]["elo"]) / 2
-                    diff = abs(t1_avg - t2_avg)
+            splits = [
+                ((players[0], players[1]), (players[2], players[3])),
+                ((players[0], players[2]), (players[1], players[3])),
+                ((players[0], players[3]), (players[1], players[2])),
+            ]
+            for t1, t2 in splits:
+                t1_avg = (t1[0]["elo"] + t1[1]["elo"]) / 2
+                t2_avg = (t2[0]["elo"] + t2[1]["elo"]) / 2
+                diff = abs(t1_avg - t2_avg)
 
-                    t1_recent = self._is_recent_teammate(t1[0]["discord_id"], t1[1]["discord_id"], pool_size)
-                    t2_recent = self._is_recent_teammate(t2[0]["discord_id"], t2[1]["discord_id"], pool_size)
+                t1_recent = self._is_recent_teammate(t1[0]["discord_id"], t1[1]["discord_id"], pool_size)
+                t2_recent = self._is_recent_teammate(t2[0]["discord_id"], t2[1]["discord_id"], pool_size)
 
-                    if not t1_recent and not t2_recent:
-                        if diff < fresh_diff:
-                            fresh_diff = diff
-                            fresh_match = (t1, t2)
-                    if diff < fallback_diff:
-                        fallback_diff = diff
-                        fallback_match = (t1, t2)
+                if not t1_recent and not t2_recent:
+                    if diff < fresh_diff:
+                        fresh_diff = diff
+                        fresh_match = (t1, t2)
+                if diff < fallback_diff:
+                    fallback_diff = diff
+                    fallback_match = (t1, t2)
 
             best_match = fresh_match or fallback_match
             if best_match:
