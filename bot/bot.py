@@ -45,6 +45,10 @@ from database import (
     set_setting,
     get_setting,
     get_expired_matches,
+    mark_match_recalculated,
+    adjust_player_elo,
+    adjust_doubles_elo,
+    adjust_team_elo,
 )
 from elo import calculate_new_ratings, expected_score, get_k_factor
 from matchmaking import (
@@ -1678,6 +1682,118 @@ async def admin_cancel_cmd(interaction: discord.Interaction, match_id: int | Non
             await thread.edit(archived=True, locked=True)
         except discord.HTTPException:
             pass
+
+
+K_RECALC = 32
+
+
+@tree.command(name="recalculate", description="[Admin] Correct the winner of a completed match and adjust Elo")
+@app_commands.describe(
+    match_id="The match ID to recalculate",
+    winner="The correct winner (for doubles, any player on the winning team)",
+)
+async def recalculate_cmd(interaction: discord.Interaction, match_id: int, winner: discord.Member):
+    if not is_admin(interaction):
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return
+
+    match = get_match_by_id(match_id, pending_only=False)
+    if not match:
+        await interaction.response.send_message(f"Match #{match_id} not found.", ephemeral=True)
+        return
+
+    if match["winner_id"] is None or match["winner_id"] == "cancelled":
+        await interaction.response.send_message(
+            f"Match #{match_id} has no result to recalculate (pending or cancelled).", ephemeral=True
+        )
+        return
+
+    if match.get("recalculated"):
+        await interaction.response.send_message(
+            f"Match #{match_id} has already been recalculated.", ephemeral=True
+        )
+        return
+
+    winner_id = str(winner.id)
+    is_doubles = match["game_mode"] == "doubles"
+
+    all_player_ids = (
+        (match["player1_id"], match["player2_id"], match["player3_id"], match["player4_id"])
+        if is_doubles else (match["player1_id"], match["player2_id"])
+    )
+    if winner_id not in all_player_ids:
+        await interaction.response.send_message(
+            f"**{winner.display_name}** is not a player in match #{match_id}.", ephemeral=True
+        )
+        return
+
+    if is_doubles:
+        old_winning_team = 1 if match["winner_id"] in (match["player1_id"], match["player2_id"]) else 2
+        new_winning_team = 1 if winner_id in (match["player1_id"], match["player2_id"]) else 2
+        if old_winning_team == new_winning_team:
+            await interaction.response.send_message(
+                f"That player's team already won match #{match_id}. Nothing to change.", ephemeral=True
+            )
+            return
+
+        t1_ids = (match["player1_id"], match["player2_id"])
+        t2_ids = (match["player3_id"], match["player4_id"])
+        wrong_winners = t1_ids if old_winning_team == 1 else t2_ids
+        actual_winners = t2_ids if old_winning_team == 1 else t1_ids
+
+        for pid in wrong_winners:
+            adjust_doubles_elo(pid, -K_RECALC)
+        for pid in actual_winners:
+            adjust_doubles_elo(pid, K_RECALC)
+
+        adjust_team_elo(t1_ids[0], t1_ids[1], K_RECALC if new_winning_team == 1 else -K_RECALC)
+        adjust_team_elo(t2_ids[0], t2_ids[1], K_RECALC if new_winning_team == 2 else -K_RECALC)
+
+        new_winner_id = match["player1_id"] if new_winning_team == 1 else match["player3_id"]
+        mark_match_recalculated(match_id, new_winner_id)
+
+        wrong_names = [get_player(pid)["username"] for pid in wrong_winners]
+        actual_names = [get_player(pid)["username"] for pid in actual_winners]
+        embed = discord.Embed(
+            title=f"Match #{match_id} Recalculated",
+            description=f"Winner corrected from **Team {old_winning_team}** to **Team {new_winning_team}**",
+            color=discord.Color.orange(),
+        )
+        embed.add_field(
+            name=f"Team {new_winning_team} (Correct Winners)",
+            value="\n".join(f"{name}: +{K_RECALC} Elo" for name in actual_names),
+            inline=False,
+        )
+        embed.add_field(
+            name=f"Team {old_winning_team} (Corrected)",
+            value="\n".join(f"{name}: -{K_RECALC} Elo" for name in wrong_names),
+            inline=False,
+        )
+    else:
+        if winner_id == match["winner_id"]:
+            await interaction.response.send_message(
+                f"**{winner.display_name}** is already the recorded winner of match #{match_id}. Nothing to change.",
+                ephemeral=True,
+            )
+            return
+
+        loser_id = match["player1_id"] if winner_id == match["player2_id"] else match["player2_id"]
+        adjust_player_elo(winner_id, K_RECALC)
+        adjust_player_elo(loser_id, -K_RECALC)
+        mark_match_recalculated(match_id, winner_id)
+
+        winner_name = get_player(winner_id)["username"]
+        loser_name = get_player(loser_id)["username"]
+        embed = discord.Embed(
+            title=f"Match #{match_id} Recalculated",
+            description=f"Winner corrected to **{winner_name}**",
+            color=discord.Color.orange(),
+        )
+        embed.add_field(name=f"{winner_name} (Correct Winner)", value=f"+{K_RECALC} Elo", inline=True)
+        embed.add_field(name=f"{loser_name} (Corrected)", value=f"-{K_RECALC} Elo", inline=True)
+
+    await interaction.response.send_message(embed=embed)
+    await log_to_match_channel(embed)
 
 
 @bot.event

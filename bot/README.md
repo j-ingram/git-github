@@ -56,6 +56,7 @@ A Discord bot that handles player matchmaking for Mario Tennis using an Elo rati
 | `/unban @player` | Unban a player from matchmaking | Public |
 | `/resolve @winner [match_id]` | Declare the winner of a disputed match | Public |
 | `/admin_cancel [match_id]` | Cancel a match with no Elo change | Public |
+| `/recalculate <match_id> @winner` | Correct the winner of a completed match and adjust Elo (±32) | Public |
 | `/set_cooldown <seconds>` | Set the rematch cooldown duration in seconds (default: 60) | Public |
 | `/set_queue_timeout <minutes>` | Set how long a player can idle in the queue before being auto-removed (default: 60) | Public |
 | `/set_vote_timeout <seconds>` | Set the no-show vote timeout in seconds (default: 300) | Public |

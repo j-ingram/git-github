@@ -91,6 +91,8 @@ def init_db():
         cursor.execute("ALTER TABLE matches ADD COLUMN player3_elo_after INTEGER")
     if "player4_elo_after" not in columns:
         cursor.execute("ALTER TABLE matches ADD COLUMN player4_elo_after INTEGER")
+    if "recalculated" not in columns:
+        cursor.execute("ALTER TABLE matches ADD COLUMN recalculated INTEGER NOT NULL DEFAULT 0")
 
     conn.commit()
     conn.close()
@@ -310,6 +312,39 @@ def update_team_stats(p1_id: str, p2_id: str, new_elo: int, won: bool):
             "UPDATE teams SET elo = ?, losses = losses + 1 WHERE player1_id = ? AND player2_id = ?",
             (new_elo, p1, p2),
         )
+    conn.commit()
+    conn.close()
+
+
+def adjust_player_elo(discord_id: str, elo_delta: int):
+    conn = get_connection()
+    conn.execute(
+        "UPDATE players SET elo = elo + ?, wins = wins + ?, losses = losses + ? WHERE discord_id = ?",
+        (elo_delta, -1 if elo_delta < 0 else 1, 1 if elo_delta < 0 else -1, discord_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def adjust_doubles_elo(discord_id: str, elo_delta: int):
+    conn = get_connection()
+    conn.execute(
+        "UPDATE player_ratings SET elo = elo + ?, wins = wins + ?, losses = losses + ? "
+        "WHERE discord_id = ? AND game_mode = 'doubles'",
+        (elo_delta, -1 if elo_delta < 0 else 1, 1 if elo_delta < 0 else -1, discord_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def adjust_team_elo(p1_id: str, p2_id: str, elo_delta: int):
+    p1, p2 = _sort_team_ids(p1_id, p2_id)
+    conn = get_connection()
+    conn.execute(
+        "UPDATE teams SET elo = elo + ?, wins = wins + ?, losses = losses + ? "
+        "WHERE player1_id = ? AND player2_id = ?",
+        (elo_delta, -1 if elo_delta < 0 else 1, 1 if elo_delta < 0 else -1, p1, p2),
+    )
     conn.commit()
     conn.close()
 
@@ -571,16 +606,29 @@ def get_match_by_thread(thread_id: str) -> dict | None:
     return dict(match) if match else None
 
 
-def get_match_by_id(match_id: int) -> dict | None:
+def get_match_by_id(match_id: int, pending_only: bool = True) -> dict | None:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT * FROM matches WHERE id = ? AND winner_id IS NULL",
-        (match_id,),
-    )
+    if pending_only:
+        cursor.execute(
+            "SELECT * FROM matches WHERE id = ? AND winner_id IS NULL",
+            (match_id,),
+        )
+    else:
+        cursor.execute("SELECT * FROM matches WHERE id = ?", (match_id,))
     match = cursor.fetchone()
     conn.close()
     return dict(match) if match else None
+
+
+def mark_match_recalculated(match_id: int, new_winner_id: str):
+    conn = get_connection()
+    conn.execute(
+        "UPDATE matches SET recalculated = 1, winner_id = ? WHERE id = ?",
+        (new_winner_id, match_id),
+    )
+    conn.commit()
+    conn.close()
 
 
 def get_pending_match(player_id: str) -> dict | None:
