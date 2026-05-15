@@ -1741,6 +1741,10 @@ async def recalculate_cmd(interaction: discord.Interaction, match_id: int, winne
         wrong_winners = t1_ids if old_winning_team == 1 else t2_ids
         actual_winners = t2_ids if old_winning_team == 1 else t1_ids
 
+        old_elos = {}
+        for pid in list(wrong_winners) + list(actual_winners):
+            old_elos[pid] = get_doubles_rating(pid)["elo"]
+
         for pid in wrong_winners:
             adjust_doubles_elo(pid, -K_RECALC)
         for pid in actual_winners:
@@ -1752,21 +1756,33 @@ async def recalculate_cmd(interaction: discord.Interaction, match_id: int, winne
         new_winner_id = match["player1_id"] if new_winning_team == 1 else match["player3_id"]
         mark_match_recalculated(match_id, new_winner_id)
 
-        wrong_names = [get_player(pid)["username"] for pid in wrong_winners]
-        actual_names = [get_player(pid)["username"] for pid in actual_winners]
         embed = discord.Embed(
             title=f"Match #{match_id} Recalculated",
-            description=f"Winner corrected from **Team {old_winning_team}** to **Team {new_winning_team}**",
+            description=(
+                f"The wrong team was recorded as the winner. "
+                f"This correction reverses the original result.\n\n"
+                f"**Correct winner: Team {new_winning_team}**"
+            ),
             color=discord.Color.orange(),
         )
+        actual_lines = []
+        for pid in actual_winners:
+            name = get_player(pid)["username"]
+            old = old_elos[pid]
+            actual_lines.append(f"{name}: {old} → {old + K_RECALC}")
         embed.add_field(
             name=f"Team {new_winning_team} (Correct Winners)",
-            value="\n".join(f"{name}: +{K_RECALC} Elo" for name in actual_names),
+            value="\n".join(actual_lines),
             inline=False,
         )
+        wrong_lines = []
+        for pid in wrong_winners:
+            name = get_player(pid)["username"]
+            old = old_elos[pid]
+            wrong_lines.append(f"{name}: {old} → {old - K_RECALC}")
         embed.add_field(
-            name=f"Team {old_winning_team} (Corrected)",
-            value="\n".join(f"{name}: -{K_RECALC} Elo" for name in wrong_names),
+            name=f"Team {old_winning_team} (Incorrect Winners)",
+            value="\n".join(wrong_lines),
             inline=False,
         )
     else:
@@ -1778,19 +1794,34 @@ async def recalculate_cmd(interaction: discord.Interaction, match_id: int, winne
             return
 
         loser_id = match["player1_id"] if winner_id == match["player2_id"] else match["player2_id"]
+        winner_name = get_player(winner_id)["username"]
+        loser_name = get_player(loser_id)["username"]
+        winner_old_elo = get_player(winner_id)["elo"]
+        loser_old_elo = get_player(loser_id)["elo"]
+
         adjust_player_elo(winner_id, K_RECALC)
         adjust_player_elo(loser_id, -K_RECALC)
         mark_match_recalculated(match_id, winner_id)
 
-        winner_name = get_player(winner_id)["username"]
-        loser_name = get_player(loser_id)["username"]
         embed = discord.Embed(
             title=f"Match #{match_id} Recalculated",
-            description=f"Winner corrected to **{winner_name}**",
+            description=(
+                f"The wrong player was recorded as the winner. "
+                f"This correction reverses the original result.\n\n"
+                f"**Correct winner: {winner_name}**"
+            ),
             color=discord.Color.orange(),
         )
-        embed.add_field(name=f"{winner_name} (Correct Winner)", value=f"+{K_RECALC} Elo", inline=True)
-        embed.add_field(name=f"{loser_name} (Corrected)", value=f"-{K_RECALC} Elo", inline=True)
+        embed.add_field(
+            name=f"{winner_name} (Correct Winner)",
+            value=f"{winner_old_elo} → {winner_old_elo + K_RECALC}",
+            inline=True,
+        )
+        embed.add_field(
+            name=f"{loser_name} (Incorrect Winner)",
+            value=f"{loser_old_elo} → {loser_old_elo - K_RECALC}",
+            inline=True,
+        )
 
     await interaction.response.send_message(embed=embed)
     await log_to_match_channel(embed)
