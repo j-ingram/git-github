@@ -1,6 +1,9 @@
 import asyncio
+import logging
 import os
 import time
+
+logging.basicConfig(level=logging.INFO)
 
 import discord
 from discord import app_commands
