@@ -19,7 +19,7 @@ REACT_DECLINE = "❌"  # ❌
 ALL_COURTS = (
     "Grass", "Hard", "Clay", "Wood", "Brick", "Carpet",
     "Mushroom", "Sand", "Ice", "Airship", "Forest", "Pinball",
-    "Factory", "Wonder",
+    "Factory", "Wonder", "Galaxy",
 )
 
 DEFAULT_ENABLED_COURTS = "Grass,Hard,Clay,Wood,Brick,Carpet,Sand,Forest"
